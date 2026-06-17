@@ -77,12 +77,12 @@ Familiarity
 
 Not Analyzed for Blast Radius
 -----------------------------
-  Blast-radius analysis covers TypeScript static imports only.
+  Blast-radius analysis covers JavaScript/TypeScript static imports only.
   package.json
   pnpm-lock.yaml
 ```
 
-**Senior engineer read:** Honest scope. Familiarity on a bot dependency bump is weak signal (bot identity), but the report correctly states TS blast radius was not computed and does not overclaim.
+**Senior engineer read:** Honest scope. Familiarity on a bot dependency bump is weak signal (bot identity), but the report correctly states JS/TS blast radius was not computed for non-source files and does not overclaim.
 
 ### Active sole contributor (brindle/v2 dogfood)
 
@@ -103,7 +103,7 @@ Nested `evidence-demo/src/` and `evidence-demo/src/report/` both appear when fil
 | Explanation adds signal beyond the diff | **Yes** — churn totals and recency in unfamiliar areas quantify risk the diff alone does not show |
 | Numbers, not just labels | **Yes** — every characterization is backed by commit counts, recency, and share |
 | Named dependents where applicable | **Yes** — type-fest #1461 correctly names `index.d.ts` as sole importer |
-| Honest limitations | **Yes** — limitations section present; non-TS files explicitly excluded |
+| Honest limitations | **Yes** — limitations section present; non-JS/TS source files explicitly excluded |
 | No verdict / score | **Yes** — report explains; reader judges |
 
 **Verdict:** The explanation format is **trustworthy on real PRs** for the familiarity signal and for blast radius where the import graph resolves correctly.
@@ -120,6 +120,6 @@ Nested `evidence-demo/src/` and `evidence-demo/src/report/` both appear when fil
 
 ## Conclusion
 
-The evidence report format passes the senior-engineer acceptance test on real TypeScript PRs. Familiarity findings are the strongest signal today. Blast-radius findings are credible on simpler repo layouts (type-fest, local fixtures) and honestly bounded where monorepo resolution is incomplete.
+The evidence report format passes the senior-engineer acceptance test on real TypeScript PRs (JavaScript/TypeScript blast-radius scope; validation repos were TS-heavy). Familiarity findings are the strongest signal today. Blast-radius findings are credible on simpler repo layouts (type-fest, local fixtures) and honestly bounded where monorepo resolution is incomplete.
 
 **Go/no-go:** Proceed — the explanation is worth showing to Peter for final human sign-off, with monorepo blast-radius caveats noted.
