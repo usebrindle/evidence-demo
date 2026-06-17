@@ -60,8 +60,8 @@ function formatShare(share: number): string {
   return Number.isInteger(percent) ? `${percent}%` : `${percent.toFixed(1)}%`;
 }
 
-function formatAreaLabel(area: string): string {
-  return area === "." ? "(repository root)" : area;
+function formatFileLabel(filePath: string): string {
+  return filePath === "." ? "(repository root)" : filePath;
 }
 
 function formatFamiliarityDetail(
@@ -82,7 +82,7 @@ function formatFamiliarityDetail(
       othersCommitCount === 1
         ? "1 commit by others"
         : `${othersCommitCount} commits by others`;
-    return `No author commits in this area in 6 months; ${othersPhrase} in this window.`;
+    return `No author commits to this file in 6 months; ${othersPhrase} in this window.`;
   }
 
   const authorCommitsPhrase =
@@ -91,16 +91,16 @@ function formatFamiliarityDetail(
       : `${finding.authorCommitCount} commits`;
 
   if (othersCommitCount === 0) {
-    return `Author has ${authorCommitsPhrase} here in 6 months (sole contributor in window), ${lastTouchPhrase}.`;
+    return `Author has ${authorCommitsPhrase} to this file in 6 months (sole contributor in window), ${lastTouchPhrase}.`;
   }
 
-  const sharePhrase = ` (${formatShare(finding.shareOfFileChurn)} of area churn)`;
+  const sharePhrase = ` (${formatShare(finding.shareOfFileChurn)} of file churn)`;
   const othersPhrase =
     othersCommitCount === 1
       ? "1 commit by others"
       : `${othersCommitCount} commits by others`;
 
-  return `Author has ${authorCommitsPhrase} here in 6 months${sharePhrase}, ${lastTouchPhrase}; ${othersPhrase} in this window (${finding.totalFileCommitCount} total).`;
+  return `Author has ${authorCommitsPhrase} to this file in 6 months${sharePhrase}, ${lastTouchPhrase}; ${othersPhrase} in this window (${finding.totalFileCommitCount} total).`;
 }
 
 function renderFamiliarityFinding(
@@ -108,7 +108,7 @@ function renderFamiliarityFinding(
   asOf: Date
 ): string[] {
   return [
-    `  ${formatAreaLabel(finding.touchedFile)} — ${finding.characterization}`,
+    `  ${formatFileLabel(finding.touchedFile)} — ${finding.characterization}`,
     `    ${formatFamiliarityDetail(finding, asOf)}`,
   ];
 }
@@ -196,11 +196,11 @@ export function renderReport(
     "",
     "Familiarity",
     "-----------",
-    "  How much the author has worked in each touched area over the last 6 months."
+    "  How much the author has worked on each changed file over the last 6 months."
   );
 
   if (familiarity.length === 0) {
-    lines.push("  (no touched areas to analyze)");
+    lines.push("  (no changed files to analyze)");
   } else {
     for (const finding of familiarity) {
       lines.push(...renderFamiliarityFinding(finding, asOf));

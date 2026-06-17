@@ -62,11 +62,11 @@ describe("renderReport", () => {
 
     assert.match(
       text,
-      /Author has 2 commits here in 6 months \(1\.1% of area churn\), last touch 4 months ago; 180 commits by others in this window \(182 total\)\./
+      /Author has 2 commits to this file in 6 months \(1\.1% of file churn\), last touch 4 months ago; 180 commits by others in this window \(182 total\)\./
     );
     assert.match(
       text,
-      /docs\/guide\.md — none[\s\S]*No author commits in this area in 6 months; 4 commits by others in this window\./
+      /docs\/guide\.md — none[\s\S]*No author commits to this file in 6 months; 4 commits by others in this window\./
     );
   });
 
@@ -145,6 +145,10 @@ describe("renderReport", () => {
     assert.match(text, /Changed files \(1\):/);
     assert.match(text, /  src\/util\.ts/);
     assert.match(text, /Familiarity\n-{11}/);
+    assert.match(
+      text,
+      /How much the author has worked on each changed file over the last 6 months\./
+    );
     assert.match(text, /Blast Radius\n-{12}/);
     assert.match(
       text,
@@ -174,7 +178,7 @@ describe("renderReport", () => {
 
     assert.match(
       text,
-      /package\.json — none[\s\S]*No author commits in this area in 6 months; 39 commits by others in this window\./
+      /package\.json — none[\s\S]*No author commits to this file in 6 months; 39 commits by others in this window\./
     );
   });
 
