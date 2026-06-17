@@ -168,6 +168,18 @@ describe("buildEvidenceReport", () => {
         item.toLowerCase().includes("no risk score")
       )
     );
+    assert.ok(
+      report.limitations.some((item) =>
+        item.includes(
+          "Path aliases are resolved only from the repository root tsconfig.json or jsconfig.json"
+        )
+      )
+    );
+    assert.ok(
+      report.limitations.some((item) =>
+        item.includes("bundler config") && item.includes("nested package configs")
+      )
+    );
     assertNoRiskScore(report);
   });
 
