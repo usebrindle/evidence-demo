@@ -72,6 +72,7 @@ docs/design/       Low-level design docs (LLDs) for the experiment
 Documented in report output and VALIDATION.md. Notable gaps deferred to product work if validated:
 
 - Monorepo / cross-package import resolution (blast radius undercounts)
+- Path alias resolution (root `tsconfig.json` / `jsconfig.json` only; bundler and nested package configs not applied)
 - Transitive dependencies, dynamic `require()` and non-literal dynamic `import()`, platform-specific module resolution, non-JS/TS source files
 - Git robustness (renames, squashes, bots, co-authors)
 - Three additional evidence items not yet implemented
