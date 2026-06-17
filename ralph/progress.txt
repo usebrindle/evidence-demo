@@ -6,7 +6,8 @@ Started: Wed, Jun 17, 2026  3:02:28 PM
 - Use `.js` extensions in TypeScript import paths (`moduleResolution: NodeNext`)
 - Pure analyzers live in `src/analyzers/`; impure git/file I/O lives in `src/inputs/`; report assembly in `src/report/`
 - CLI entry point is `src/cli.ts` → `dist/cli.js` via `bin` in package.json
-- History window constant `HISTORY_WINDOW_MONTHS = 6` lives in `gitHistorySource.ts`
+- History window constant `HISTORY_WINDOW_MONTHS = 6` lives in `gitHistorySource.ts`; use `historyWindowSince()` to compute the `since` date for queries
+- `createGitHistorySource(repoPath).query({ authorEmail, path, since })` returns `{ authorCommitCount, totalCommitCount, lastTouchDate }` via local `git log`
 - Tests live in `evidence-demo/test/`; compile with `tsconfig.test.json` to `dist-test/`; run via `node --test dist-test/test/**/*.test.js`
 - `resolveChangedFiles` in `changedFiles.ts` uses local git only: `base...head` ranges, branch names (vs default branch), or PR numbers (via locally fetched `refs/pull/N/head`)
 
@@ -34,4 +35,15 @@ Started: Wed, Jun 17, 2026  3:02:28 PM
   - Default branch resolution tries `refs/remotes/origin/HEAD`, then `origin/main`, `origin/master`, `main`, `master`
   - PR numbers require pull refs to exist locally; no network/gh CLI calls
   - Test harness: compile `test/` to `dist-test/` separately so production `dist/` stays clean
+---
+## Wed, Jun 17, 2026 - US-003
+- Implemented `createGitHistorySource` reading local git log for author commits, total area churn, and last-touch date
+- Added `historyWindowSince()` helper for the hardcoded 6-month history window
+- Integration tests with dated commits via `GIT_AUTHOR_DATE` / `GIT_COMMITTER_DATE` env vars
+- Files changed: `evidence-demo/src/inputs/gitHistorySource.ts`, `evidence-demo/test/gitHistorySource.test.ts`, `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Git log path filters use `-- path`; directory paths (e.g. `src/`) aggregate all commits under that tree
+  - `--author=<email>` matches author identity; pair with `--since=<ISO8601>` for windowed queries
+  - Use fixed `REFERENCE_DATE` plus `daysAgo()` in tests to control commit dates relative to the history window
+  - Manual browser verification not needed (no UI changes)
 ---
