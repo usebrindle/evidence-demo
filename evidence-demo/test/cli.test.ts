@@ -147,7 +147,7 @@ describe("runEvidenceDemo", () => {
 
     assert.match(output, /Author: Alice Author <alice@example.com>/);
     assert.match(output, /src\/ —/);
-    assert.match(output, /Changed files: 3/);
+    assert.match(output, /Changed files \(3\):/);
     assert.match(output, /src\/auth\.ts — isolated/);
     assert.match(output, /Imported by 2 modules/);
   });

@@ -8,6 +8,8 @@ import type { AuthorIdentity } from "../inputs/changedFiles.js";
 
 export interface EvidenceReport {
   author: AuthorIdentity;
+  /** PR number, branch name, or commit range that was analyzed. */
+  changeReference?: string;
   changedFiles: readonly string[];
   familiarity: readonly FamiliarityFinding[];
   blastRadius: readonly BlastRadiusFinding[];
@@ -17,6 +19,7 @@ export interface EvidenceReport {
 
 export interface BuildEvidenceReportInput {
   author: AuthorIdentity;
+  changeReference?: string;
   changedFiles: readonly string[];
   familiarity: readonly FamiliarityFinding[];
   blastRadius: readonly BlastRadiusFinding[];
@@ -36,6 +39,7 @@ export function buildEvidenceReport(
 
   return {
     author: input.author,
+    changeReference: input.changeReference,
     changedFiles: input.changedFiles,
     familiarity: input.familiarity,
     blastRadius: input.blastRadius,

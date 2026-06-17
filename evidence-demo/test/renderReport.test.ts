@@ -62,11 +62,11 @@ describe("renderReport", () => {
 
     assert.match(
       text,
-      /Author has 2 commits here in 6 months \(1\.1% of area churn\), last one 4 months ago; 180 commits in this area total by others \(182 total in window\)\./
+      /Author has 2 commits here in 6 months \(1\.1% of area churn\), last touch 4 months ago; 180 commits by others in this window \(182 total\)\./
     );
     assert.match(
       text,
-      /docs\/ — none[\s\S]*Author has 0 commits here in 6 months, never touched in this window; 4 commits in this area total by others \(4 total in window\)\./
+      /docs\/ — none[\s\S]*No author commits in this area in 6 months; 4 commits by others in this window\./
     );
   });
 
@@ -131,6 +131,7 @@ describe("renderReport", () => {
   it("produces terminal-friendly output with section headers", () => {
     const report = buildEvidenceReport({
       author,
+      changeReference: "42",
       changedFiles: ["src/util.ts"],
       familiarity: sampleFamiliarity.slice(0, 1),
       blastRadius: sampleBlastRadius.slice(0, 1),
@@ -140,10 +141,54 @@ describe("renderReport", () => {
 
     assert.match(text, /^Evidence Report\n={15}/);
     assert.match(text, /Author: Ada Lovelace <ada@example\.com>/);
-    assert.match(text, /Changed files: 1/);
+    assert.match(text, /Change: 42/);
+    assert.match(text, /Changed files \(1\):/);
+    assert.match(text, /  src\/util\.ts/);
     assert.match(text, /Familiarity\n-{11}/);
     assert.match(text, /Blast Radius\n-{12}/);
     assert.ok(text.endsWith(report.limitations.at(-1)!));
+  });
+
+  it("labels repository-root areas clearly", () => {
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["package.json"],
+      familiarity: [
+        {
+          area: ".",
+          authorCommitCount: 0,
+          totalAreaCommitCount: 39,
+          lastTouchDate: null,
+          shareOfAreaChurn: 0,
+          characterization: "none",
+        },
+      ],
+      blastRadius: [],
+    });
+
+    const text = renderReport(report, { asOf });
+
+    assert.match(
+      text,
+      /\(repository root\) — none[\s\S]*No author commits in this area in 6 months; 39 commits by others in this window\./
+    );
+  });
+
+  it("sorts unfamiliar areas before familiar ones and broad blast radius first", () => {
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["src/util.ts", "src/isolated.ts", "docs/guide.md"],
+      familiarity: sampleFamiliarity,
+      blastRadius: sampleBlastRadius,
+    });
+
+    const text = renderReport(report, { asOf });
+    const familiaritySection = text.split("Blast Radius")[0] ?? "";
+    const blastSection =
+      text.split("Blast Radius")[1]?.split("Limitations")[0] ?? "";
+
+    assert.ok(familiaritySection.indexOf("docs/ — none") < familiaritySection.indexOf("src/ — moderate"));
+    assert.ok(blastSection.indexOf("src/util.ts — broad") < blastSection.indexOf("src/isolated.ts — isolated"));
   });
 });
 

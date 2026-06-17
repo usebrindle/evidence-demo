@@ -142,4 +142,16 @@ describe("buildEvidenceReport", () => {
     );
     assertNoRiskScore(report);
   });
+
+  it("passes through changeReference when provided", () => {
+    const report = buildEvidenceReport({
+      author,
+      changeReference: "6098",
+      changedFiles: ["src/util.ts"],
+      familiarity: [],
+      blastRadius: [],
+    });
+
+    assert.equal(report.changeReference, "6098");
+  });
 });

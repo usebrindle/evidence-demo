@@ -9,7 +9,25 @@ import type { EvidenceReport } from "./buildEvidenceReport.js";
 export interface RenderReportOptions {
   /** Reference date for relative recency phrases (defaults to now). */
   asOf?: Date;
+  /** Max changed files to list before truncating (defaults to 12). */
+  maxChangedFilesListed?: number;
 }
+
+const FAMILIARITY_ORDER: Record<FamiliarityFinding["characterization"], number> =
+  {
+    none: 0,
+    moderate: 1,
+    high: 2,
+  };
+
+const BLAST_RADIUS_ORDER: Record<
+  BlastRadiusFinding["characterization"],
+  number
+> = {
+  broad: 0,
+  moderate: 1,
+  isolated: 2,
+};
 
 function formatRelativeAge(date: Date, asOf: Date): string {
   const msPerDay = 24 * 60 * 60 * 1000;
@@ -42,36 +60,56 @@ function formatShare(share: number): string {
   return Number.isInteger(percent) ? `${percent}%` : `${percent.toFixed(1)}%`;
 }
 
-function renderFamiliarityFinding(
+function formatAreaLabel(area: string): string {
+  return area === "." ? "(repository root)" : area;
+}
+
+function formatFamiliarityDetail(
   finding: FamiliarityFinding,
   asOf: Date
-): string[] {
+): string {
   const othersCommitCount = Math.max(
     0,
     finding.totalAreaCommitCount - finding.authorCommitCount
   );
+  const lastTouchPhrase =
+    finding.lastTouchDate === null
+      ? "never touched in this window"
+      : `last touch ${formatRelativeAge(finding.lastTouchDate, asOf)}`;
+
+  if (finding.authorCommitCount === 0) {
+    const othersPhrase =
+      othersCommitCount === 1
+        ? "1 commit by others"
+        : `${othersCommitCount} commits by others`;
+    return `No author commits in this area in 6 months; ${othersPhrase} in this window.`;
+  }
+
   const authorCommitsPhrase =
     finding.authorCommitCount === 1
       ? "1 commit"
       : `${finding.authorCommitCount} commits`;
-  const othersCommitsPhrase =
+
+  if (othersCommitCount === 0) {
+    return `Author has ${authorCommitsPhrase} here in 6 months (sole contributor in window), ${lastTouchPhrase}.`;
+  }
+
+  const sharePhrase = ` (${formatShare(finding.shareOfAreaChurn)} of area churn)`;
+  const othersPhrase =
     othersCommitCount === 1
-      ? "1 commit"
-      : `${othersCommitCount} commits`;
+      ? "1 commit by others"
+      : `${othersCommitCount} commits by others`;
 
-  const lastTouchPhrase =
-    finding.lastTouchDate === null
-      ? "never touched in this window"
-      : `last one ${formatRelativeAge(finding.lastTouchDate, asOf)}`;
+  return `Author has ${authorCommitsPhrase} here in 6 months${sharePhrase}, ${lastTouchPhrase}; ${othersPhrase} in this window (${finding.totalAreaCommitCount} total).`;
+}
 
-  const sharePhrase =
-    finding.authorCommitCount > 0
-      ? ` (${formatShare(finding.shareOfAreaChurn)} of area churn)`
-      : "";
-
+function renderFamiliarityFinding(
+  finding: FamiliarityFinding,
+  asOf: Date
+): string[] {
   return [
-    `  ${finding.area} — ${finding.characterization}`,
-    `    Author has ${authorCommitsPhrase} here in 6 months${sharePhrase}, ${lastTouchPhrase}; ${othersCommitsPhrase} in this area total by others (${finding.totalAreaCommitCount} total in window).`,
+    `  ${formatAreaLabel(finding.area)} — ${finding.characterization}`,
+    `    ${formatFamiliarityDetail(finding, asOf)}`,
   ];
 }
 
@@ -103,36 +141,83 @@ function renderBlastRadiusFinding(finding: BlastRadiusFinding): string[] {
   ];
 }
 
+function renderChangedFilesList(
+  changedFiles: readonly string[],
+  maxListed: number
+): string[] {
+  if (changedFiles.length === 0) {
+    return ["  (none)"];
+  }
+
+  const lines = changedFiles.slice(0, maxListed).map((file) => `  ${file}`);
+  const remaining = changedFiles.length - maxListed;
+  if (remaining > 0) {
+    const fileWord = remaining === 1 ? "file" : "files";
+    lines.push(`  ... and ${remaining} more ${fileWord}`);
+  }
+  return lines;
+}
+
 export function renderReport(
   report: EvidenceReport,
   options: RenderReportOptions = {}
 ): string {
   const asOf = options.asOf ?? new Date();
+  const maxChangedFilesListed = options.maxChangedFilesListed ?? 12;
+
+  const familiarity = [...report.familiarity].sort(
+    (a, b) =>
+      FAMILIARITY_ORDER[a.characterization] -
+        FAMILIARITY_ORDER[b.characterization] || a.area.localeCompare(b.area)
+  );
+
+  const blastRadius = [...report.blastRadius].sort(
+    (a, b) =>
+      BLAST_RADIUS_ORDER[a.characterization] -
+        BLAST_RADIUS_ORDER[b.characterization] ||
+      b.dependentCount - a.dependentCount ||
+      a.changedFile.localeCompare(b.changedFile)
+  );
+
   const lines: string[] = [
     "Evidence Report",
     "===============",
     "",
     `Author: ${report.author.name} <${report.author.email}>`,
-    `Changed files: ${report.changedFiles.length}`,
+  ];
+
+  if (report.changeReference !== undefined) {
+    lines.push(`Change: ${report.changeReference}`);
+  }
+
+  lines.push(
+    `Changed files (${report.changedFiles.length}):`,
+    ...renderChangedFilesList(report.changedFiles, maxChangedFilesListed),
     "",
     "Familiarity",
     "-----------",
-  ];
+    "  How much the author has worked in each touched area over the last 6 months."
+  );
 
-  if (report.familiarity.length === 0) {
+  if (familiarity.length === 0) {
     lines.push("  (no touched areas to analyze)");
   } else {
-    for (const finding of report.familiarity) {
+    for (const finding of familiarity) {
       lines.push(...renderFamiliarityFinding(finding, asOf));
     }
   }
 
-  lines.push("", "Blast Radius", "------------");
+  lines.push(
+    "",
+    "Blast Radius",
+    "------------",
+    "  Direct static importers of each changed TypeScript file."
+  );
 
-  if (report.blastRadius.length === 0) {
+  if (blastRadius.length === 0) {
     lines.push("  (no TypeScript changed files to analyze)");
   } else {
-    for (const finding of report.blastRadius) {
+    for (const finding of blastRadius) {
       lines.push(...renderBlastRadiusFinding(finding));
     }
   }

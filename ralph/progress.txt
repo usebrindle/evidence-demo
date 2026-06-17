@@ -17,6 +17,8 @@
 - Pure report assembly in `src/report/buildEvidenceReport.ts`: `buildEvidenceReport({ author, changedFiles, familiarity, blastRadius })` → `EvidenceReport` with full finding objects, `notAnalyzedForBlastRadius` for non-TS changed files, and a fixed `limitations` list (no risk score or merge recommendation)
 - Pure report rendering in `src/report/renderReport.ts`: `renderReport(report, { asOf? })` → terminal text with familiarity numbers (author commits, recency, others' commits, share), blast-radius counts with sampled dependents, non-TS `notAnalyzedForBlastRadius` section with TS-only note, and limitations; pass `asOf` for deterministic relative dates in tests
 - CLI orchestration in `src/cli.ts`: `runEvidenceDemo(repoPath, prOrRange, { asOf? })` wires resolve change → `analyzeFamiliarity` + `createImportGraph`/`analyzeBlastRadius` → `buildEvidenceReport` → `renderReport`; `main()` prints to stdout; test via `runEvidenceDemo` with `asOf` for deterministic output
+- Real PR validation: run `evidence-demo/scripts/run-validation-prs.sh` against clones in `/tmp/evidence-validation` (or set `EVIDENCE_VALIDATION_DIR`); results documented in `evidence-demo/VALIDATION.md`; PR refs need `git fetch origin pull/N/head:refs/remotes/origin/pull/N/head`
+- Report rendering tuned in US-015: clearer familiarity phrasing (no-author / sole-contributor / shared), `(repository root)` for area `.`, changed-file listing + change reference in header, section context lines, unfamiliar-first / broad-first sort order
 
 ---
 ## Wed, Jun 17, 2026 - US-001
@@ -182,5 +184,18 @@
 - **Learnings for future iterations:**
   - US-013 passed empty `blastRadius: []`; US-014 replaces that with real import-graph analysis
   - Test repos need importer files on the feature branch HEAD for blast-radius findings; changed-file count includes all PR files, not just the primary target
+  - Manual browser verification not needed (no UI changes)
+---
+## Wed, Jun 17, 2026 - US-015
+- Ran evidence-demo against real PRs from zod (#6098, #6096), type-fest (#1461, #1460), citty (#243), and brindle/v2 commit range
+- Tuned report formatting: clearer familiarity phrasing (no-author / sole-contributor / shared), `(repository root)` label, changed-file listing, change reference in header, section context lines, priority sorting (unfamiliar first, broad blast radius first)
+- Documented validation result as **validated with caveats** in `evidence-demo/VALIDATION.md`; added `evidence-demo/scripts/run-validation-prs.sh` for repeat runs
+- Attempted nested-area collapse was reverted — dropping parent areas when child areas exist incorrectly hides findings for files directly in the parent directory (e.g. zod `classic/schemas.ts`)
+- `npm run typecheck` and `npm run test` pass (70 tests)
+- Files changed: `evidence-demo/src/report/renderReport.ts`, `evidence-demo/src/report/buildEvidenceReport.ts`, `evidence-demo/src/cli.ts`, `evidence-demo/test/renderReport.test.ts`, `evidence-demo/test/buildEvidenceReport.test.ts`, `evidence-demo/test/cli.test.ts`, `evidence-demo/VALIDATION.md`, `evidence-demo/scripts/run-validation-prs.sh`, `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - PR numbers require `git fetch origin pull/N/head:refs/remotes/origin/pull/N/head` — bulk `refs/pull/*/head` fetch uses a different ref namespace
+  - Familiarity signal is trustworthy on real external-contributor PRs; blast-radius undercounts in monorepos (documented as lower bound)
+  - Do not collapse parent directory areas when changed files sit directly in the parent — each `touchedAreaForPath` mapping is intentional
   - Manual browser verification not needed (no UI changes)
 ---

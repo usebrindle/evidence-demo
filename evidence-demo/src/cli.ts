@@ -56,6 +56,7 @@ export function runEvidenceDemo(
 
   const report = buildEvidenceReport({
     author,
+    changeReference: prOrRange,
     changedFiles,
     familiarity,
     blastRadius,
