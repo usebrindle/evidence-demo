@@ -20,7 +20,7 @@ If refuted, the robustness grind is not worth starting. If validated, the analyz
 
 ## Scope
 
-In scope ... two evidence items computed roughly, on a single repo at a time, with blast radius computed from JavaScript and TypeScript static imports (`.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, `.cts`). A readable report. Local only.
+In scope ... two evidence items computed roughly, on a single repo at a time, with blast radius computed from JavaScript and TypeScript static ESM imports and static-literal CommonJS `require()` (`.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, `.cts`). Familiarity is per changed file, not per directory. A readable report. Local only.
 
 Explicitly out of scope, deferred to the product if validated ... the robustness Peter listed (renamed and moved files, squashed commits, generated code, bot commits, co-authored commits, reviewers who rarely commit, new team members, monorepo boundaries, dynamic imports, transitive dependency impact), multi-language blast radius (Python, Go, and other non-JS/TS languages), the other three evidence items (public-interface touches, resemblance to past clean merges, resemblance to past reverts and incidents), any scoring, any storage, any hosting.
 
@@ -30,8 +30,8 @@ The two analyzers are written as pure, core-shaped functions ... they take expli
 
 ## The LLDs
 
-1. [0001-familiarity-analyzer.md](0001-familiarity-analyzer.md) ... author-module familiarity from git history. Language-agnostic. Core-destined.
-2. [0002-blast-radius-analyzer.md](0002-blast-radius-analyzer.md) ... reverse-dependency breadth from JavaScript and TypeScript static import analysis. Core-destined.
+1. [0001-familiarity-analyzer.md](0001-familiarity-analyzer.md) ... author familiarity per changed file from git history. Language-agnostic. Core-destined.
+2. [0002-blast-radius-analyzer.md](0002-blast-radius-analyzer.md) ... reverse-dependency breadth from JavaScript and TypeScript static import and static-literal `require()` analysis. Core-destined.
 3. [0003-evidence-report-and-cli.md](0003-evidence-report-and-cli.md) ... assembles the analyzer findings into the human-readable report and wraps them in the throwaway CLI.
 
 ## Build order

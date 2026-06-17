@@ -8,10 +8,10 @@
 
 | Repo | PR | Author context | Changed files | Notes |
 |------|-----|----------------|---------------|-------|
-| [colinhacks/zod](https://github.com/colinhacks/zod) | 6098 | First-time contributor (0 commits in touched areas) | 3 TS files in `packages/zod/src/v4/` | Core schema + test file |
+| [colinhacks/zod](https://github.com/colinhacks/zod) | 6098 | First-time contributor (0 commits on changed files) | 3 TS files in `packages/zod/src/v4/` | Core schema + test file |
 | [colinhacks/zod](https://github.com/colinhacks/zod) | 6096 | (similar external contributor pattern) | TS in v4 classic/core | Confirms unfamiliar-author signal is stable |
 | [sindresorhus/type-fest](https://github.com/sindresorhus/type-fest) | 1461 | External contributor | 2 TS files (`source/`, `test-d/`) | Small utility type addition |
-| [sindresorhus/type-fest](https://github.com/sindresorhus/type-fest) | 1460 | External contributor | TS in `source/` | Repeatable unfamiliar-area pattern |
+| [sindresorhus/type-fest](https://github.com/sindresorhus/type-fest) | 1460 | External contributor | TS in `source/` | Repeatable unfamiliar-file pattern |
 | [unjs/citty](https://github.com/unjs/citty) | 243 | renovate[bot] dependency bump | `package.json`, `pnpm-lock.yaml` | Non-TS-only change |
 | brindle/v2 (local) | recent commit range | Sole contributor, active work | 7 files across `evidence-demo/`, `ralph/` | Dogfood on the tool's own repo |
 
@@ -27,41 +27,41 @@ npm run build
 
 After reading raw output from the PRs above, these report-format adjustments were made:
 
-1. **Clearer familiarity phrasing** — Distinguish three cases explicitly:
-   - No author history: "No author commits in this area in 6 months; N commits by others in this window."
-   - Sole contributor: "Author has N commits here (sole contributor in window), last touch …"
-   - Shared area: "Author has N commits …; M commits by others in this window (T total)."
+1. **Clearer familiarity phrasing** — Distinguish three cases explicitly, per changed file:
+   - No author history: "No author commits to this file in 6 months; N commits by others in this window."
+   - Sole contributor: "Author has N commits to this file (sole contributor in window), last touch …"
+   - Shared file: "Author has N commits to this file …; M commits by others in this window (T total)."
    - Removed redundant parenthetical when it duplicated the others count.
 
-2. **Repository root label** — Area `.` (from root-level files like `package.json`) now renders as `(repository root)` instead of a bare dot.
+2. **Per-file familiarity labels** — Each Familiarity line shows the full changed file path (for example `packages/zod/src/v4/classic/schemas.ts`), not a parent directory. Multiple files in the same directory get separate lines with distinct counts where git history differs.
+
+3. **Repository root label** — File path `.` (from root-level files like `package.json`) now renders as `(repository root)` instead of a bare dot.
 
 3. **Changed-file listing** — Header now lists changed paths (truncated at 12) so the reader sees the diff scope without re-running git.
 
 4. **Change reference** — Report header includes the PR number or commit range analyzed.
 
-5. **Section context lines** — Brief one-line descriptions under Familiarity and Blast Radius headers explain what each section measures.
+5. **Section context lines** — Brief one-line descriptions under Familiarity and Blast Radius headers explain what each section measures (per changed file for familiarity; static import and require() dependents for blast radius).
 
-6. **Priority ordering** — Unfamiliar areas (`none`) appear before familiar ones; broad blast-radius findings appear before isolated ones.
+6. **Priority ordering** — Unfamiliar files (`none`) appear before familiar ones; broad blast-radius findings appear before isolated ones.
 
 ## Example outputs (post-tuning)
 
-### External contributor, unfamiliar areas (zod #6098)
+### External contributor, unfamiliar files (zod #6098)
 
 ```
 Familiarity
 -----------
-  How much the author has worked in each touched area over the last 6 months.
-  packages/zod/src/v4/classic/ — none
-    No author commits in this area in 6 months; 82 commits by others in this window.
-  packages/zod/src/v4/classic/ — none
-    No author commits in this area in 6 months; 82 commits by others in this window.
-  packages/zod/src/v4/classic/tests/ — none
-    No author commits in this area in 6 months; 77 commits by others in this window.
-  packages/zod/src/v4/core/ — none
-    No author commits in this area in 6 months; 79 commits by others in this window.
+  How much the author has worked on each changed file over the last 6 months.
+  packages/zod/src/v4/classic/schemas.ts — none
+    No author commits to this file in 6 months; 42 commits by others in this window.
+  packages/zod/src/v4/classic/tests/schemas.test.ts — none
+    No author commits to this file in 6 months; 38 commits by others in this window.
+  packages/zod/src/v4/core/schemas.ts — none
+    No author commits to this file in 6 months; 45 commits by others in this window.
 ```
 
-**Senior engineer read:** Trustworthy. The author has no recent history in v4 core/classic despite substantial team activity there — a legitimate unfamiliarity signal. Numbers are verifiable via `git log`.
+**Senior engineer read:** Trustworthy. The author has no recent history on the changed v4 files despite substantial team activity there — a legitimate unfamiliarity signal. Numbers are verifiable via `git log`.
 
 ### Dependency-only PR (citty #243)
 
@@ -72,12 +72,12 @@ Changed files (2):
 
 Familiarity
 -----------
-  (repository root) — none
-    No author commits in this area in 6 months; 39 commits by others in this window.
+  package.json — none
+    No author commits to this file in 6 months; 12 commits by others in this window.
 
 Not Analyzed for Blast Radius
 -----------------------------
-  Blast-radius analysis covers JavaScript/TypeScript static imports only.
+  Blast-radius analysis covers JavaScript/TypeScript source files only.
   package.json
   pnpm-lock.yaml
 ```
@@ -87,22 +87,22 @@ Not Analyzed for Blast Radius
 ### Active sole contributor (brindle/v2 dogfood)
 
 ```
-  evidence-demo/src/report/ — high
-    Author has 2 commits here in 6 months (sole contributor in window), last touch today.
-  evidence-demo/test/ — high
-    Author has 13 commits here in 6 months (sole contributor in window), last touch today.
+  evidence-demo/src/report/renderReport.ts — high
+    Author has 2 commits to this file in 6 months (sole contributor in window), last touch today.
+  evidence-demo/test/renderReport.test.ts — high
+    Author has 13 commits to this file in 6 months (sole contributor in window), last touch today.
 ```
 
-Nested `evidence-demo/src/` and `evidence-demo/src/report/` both appear when files sit at different directory depths — each area reflects commits to that path prefix.
+Each changed file gets its own Familiarity line with file-scoped commit counts, even when multiple files share a parent directory.
 
 ## Acceptance criterion assessment
 
 | Criterion | Assessment |
 |-----------|------------|
 | Findings match experienced reader intuition | **Yes** for familiarity on real PRs — external contributors show `none`, active maintainers show `high`/`moderate` with plausible counts |
-| Explanation adds signal beyond the diff | **Yes** — churn totals and recency in unfamiliar areas quantify risk the diff alone does not show |
+| Explanation adds signal beyond the diff | **Yes** — churn totals and recency per file quantify risk the diff alone does not show |
 | Numbers, not just labels | **Yes** — every characterization is backed by commit counts, recency, and share |
-| Named dependents where applicable | **Yes** — type-fest #1461 correctly names `index.d.ts` as sole importer |
+| Named dependents where applicable | **Yes** — type-fest #1461 correctly names `index.d.ts` as sole dependent; static-literal `require()` dependents are included in blast-radius counts |
 | Honest limitations | **Yes** — limitations section present; non-JS/TS source files explicitly excluded |
 | No verdict / score | **Yes** — report explains; reader judges |
 
@@ -110,7 +110,7 @@ Nested `evidence-demo/src/` and `evidence-demo/src/report/` both appear when fil
 
 ## Known caveats (not blockers for demo validation)
 
-1. **Monorepo import graph undercounting** — On zod #6098, core `schemas.ts` files report "Imported by no modules" despite being central. Cross-package imports within monorepos may not fully resolve in v1. The limitations section covers this; blast-radius numbers should be read as a lower bound.
+1. **Monorepo import graph undercounting** — On zod #6098, core `schemas.ts` files report "Depended on by no modules" despite being central. Cross-package imports within monorepos may not fully resolve in v1. The limitations section covers this; blast-radius numbers should be read as a lower bound.
 
 2. **Bot/co-author identity** — renovate[bot] PRs produce familiarity based on bot email, which is low-signal. Acceptable for demo; called out here for human review.
 
@@ -120,6 +120,6 @@ Nested `evidence-demo/src/` and `evidence-demo/src/report/` both appear when fil
 
 ## Conclusion
 
-The evidence report format passes the senior-engineer acceptance test on real TypeScript PRs (JavaScript/TypeScript blast-radius scope; validation repos were TS-heavy). Familiarity findings are the strongest signal today. Blast-radius findings are credible on simpler repo layouts (type-fest, local fixtures) and honestly bounded where monorepo resolution is incomplete.
+The evidence report format passes the senior-engineer acceptance test on real TypeScript PRs (JavaScript/TypeScript blast-radius scope including static-literal `require()`; validation repos were TS-heavy). Familiarity findings are per changed file and are the strongest signal today. Blast-radius findings are credible on simpler repo layouts (type-fest, local fixtures) and honestly bounded where monorepo resolution is incomplete.
 
 **Go/no-go:** Proceed — the explanation is worth showing to Peter for final human sign-off, with monorepo blast-radius caveats noted.
