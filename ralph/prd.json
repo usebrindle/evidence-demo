@@ -1,18 +1,21 @@
 {
-  "project": "evidence-demo",
-  "branchName": "ralph/javascript-blast-radius",
-  "description": "JavaScript Blast-Radius Extension — extend blast-radius analysis from TypeScript-only to JavaScript and TypeScript source files (.js, .jsx, .mjs, .cjs, .ts, .tsx, .mts, .cts), update design docs and user-facing copy, preserve pure-analyzer architecture",
+  "project": "Evidence Demo",
+  "branchName": "ralph/require-and-per-file-familiarity",
+  "description": "Add static-literal CommonJS require() to blast-radius analysis and change familiarity to per-file findings labeled by full file path (not parent directories).",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Update design docs for JS/TS blast radius",
-      "description": "As a developer or future agent, I want the LLD set to describe JavaScript-and-TypeScript blast-radius scope so implementation and docs stay aligned.",
+      "title": "Extract static-literal require() in the import graph",
+      "description": "As a developer, I need the import graph to record reverse-dependency edges from static require() calls so blast radius reflects how CommonJS modules are actually wired.",
       "acceptanceCriteria": [
-        "docs/design/README.md scope section describes blast radius as JS/TS (not TypeScript-only); multi-language non-goal still excludes Python, Go, etc.",
-        "docs/design/0002-blast-radius-analyzer.md updated: purpose, how it analyzes, slices, out-of-scope, and dependencies refer to JS/TS source files",
-        "docs/design/0003-evidence-report-and-cli.md updated: importGraphSource description and out-of-scope wording reflect JS/TS coverage",
-        "No contradictory TypeScript-only statements remain in the design set unless explicitly marked as historical",
-        "Typecheck passes"
+        "importGraphSource.ts walks CallExpression nodes where the callee is require and the argument is a StringLiteral (or equivalent static form)",
+        "Extracted require specifiers are resolved with the same relative and tsconfig/jsconfig alias resolution as ESM imports",
+        "Require-based edges are merged into the same ImportGraph map (target to sorted importer paths)",
+        "require(someVariable) and other non-literal forms produce no edge",
+        "Unit tests cover: .js file required by another .js file; mixed import and require dependents on the same target; dynamic require(variable) produces no false edge",
+        "Existing import-graph and blast-radius tests still pass",
+        "Typecheck passes",
+        "Tests pass"
       ],
       "priority": 1,
       "passes": true,
@@ -20,84 +23,103 @@
     },
     {
       "id": "US-002",
-      "title": "Discover and parse JavaScript source files in the import graph",
-      "description": "As a developer, I need the import graph to include .js, .jsx, .mjs, and .cjs files so reverse-dependency counts reflect real JavaScript modules.",
+      "title": "Blast-radius findings include require-based dependents",
+      "description": "As a senior engineer reading the report, I want dependent counts to include modules that reach a changed file via require(), not only via import.",
       "acceptanceCriteria": [
-        "importGraphSource.ts walks repo for all in-scope JS/TS extensions (.js, .jsx, .mjs, .cjs, .ts, .tsx, .mts, .cts), not only .ts/.tsx",
-        "extractImportSpecifiers uses correct ts.ScriptKind per file (JS, JSX, TS, TSX as appropriate)",
-        "Relative module resolution finds .js/.jsx/.mjs/.cjs targets and index.* variants under those extensions",
-        "Aliased module resolution accepts resolved paths for all in-scope JS/TS extensions (remove .tsx?$-only filter on resolved paths)",
-        "Existing TypeScript import-graph tests still pass",
-        "New unit tests cover at least: .js importing .js, .jsx importing .jsx, and a mixed .ts to .js import chain",
+        "analyzeBlastRadius and countDirectImportersForFile return dependents regardless of whether the edge came from import or require()",
+        "A changed file required by other modules shows a non-zero dependentCount and lists those dependents in the sample",
+        "Characterization thresholds unchanged (isolated 0-2, moderate 3-10, broad 11+)",
+        "Integration or CLI test includes a fixture where the only dependents use require(), and the report shows them",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Extend blast-radius analyzer to JS/TS changed files",
-      "description": "As a senior engineer reading the report, I want blast-radius findings for changed JavaScript files, not only .ts/.tsx.",
+      "title": "Update report copy and limitations for require() support",
+      "description": "As a user, I want report wording to state exactly what blast-radius analysis counts now that require() is supported.",
       "acceptanceCriteria": [
-        "blastRadius.ts treats all in-scope JS/TS extensions as analyzable (rename TypeScript-specific helper to neutral naming, e.g. isAnalyzableSourceFile)",
-        "analyzeBlastRadius returns findings for changed .js/.jsx/.mjs/.cjs files when present in the import graph",
-        "Changed files outside in-scope extensions are still skipped without error",
-        "Characterization thresholds unchanged: isolated 0-2, moderate 3-10, broad 11+",
-        "Tests updated: skips non-TypeScript becomes skips non-analyzable with cases for .md, .json, etc.",
+        "buildEvidenceReport.ts limitations updated: state static import and static-literal require() dependents; dynamic require() and runtime indirection not counted",
+        "renderReport.ts Not Analyzed for Blast Radius preamble no longer says CommonJS require() is not analyzed",
+        "Blast Radius section context line mentions both import and require mechanisms (or neutral static dependency wording)",
+        "renderReport.test.ts, buildEvidenceReport.test.ts, and cli.test.ts updated for new copy",
+        "On platforms with non-import/require wiring (e.g. SFCC cartridge path), limitations note blast radius may be a lower bound (per LLD 0002)",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Update report assembly and rendering copy",
-      "description": "As a user, I want report wording to accurately describe JS/TS blast-radius coverage and list only truly unanalyzed files under not analyzed.",
+      "title": "Familiarity analyzer produces per-file findings",
+      "description": "As a developer, I need familiarity analysis to query git history per changed file so findings align with the changed-files list.",
       "acceptanceCriteria": [
-        "buildEvidenceReport.ts classifies in-scope JS/TS files as blast-radius analyzable; only non-source files appear in notAnalyzedForBlastRadius",
-        "Limitations text updated from TypeScript static imports only to JavaScript/TypeScript static imports only; CommonJS require() not analyzed",
-        "renderReport.ts section headers and empty-state messages use JS/TS wording, not TypeScript-only",
-        "Tests in buildEvidenceReport.test.ts, renderReport.test.ts, and cli.test.ts updated for new copy and behavior",
-        "A changed .js file with importers no longer appears under not analyzed for blast radius",
+        "analyzeFamiliarity iterates over unique changed file paths (not touchedAreaForPath() directories)",
+        "Each finding corresponds to one changed file; git historySource.query() uses the file path as path",
+        "FamiliarityFinding fields renamed: area to touchedFile, totalAreaCommitCount to totalFileCommitCount, shareOfAreaChurn to shareOfFileChurn",
+        "shareOfFileChurn computed from file-level counts (author file commits divided by total file commits)",
+        "characterizeFamiliarity thresholds unchanged; recency based on author's last touch to that file",
+        "touchedAreaForPath removed (no remaining callers); no directory aggregation in analyzeFamiliarity",
+        "Familiarity tests updated: findings use file paths like src/foo.ts, not src/",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 4,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Update project README and validation notes",
-      "description": "As a new contributor, I want top-level docs to describe the broader blast-radius scope.",
+      "title": "Familiarity report renders one line per changed file",
+      "description": "As a senior engineer reading a real PR report, I want each Familiarity line to show the actual changed file path, matching Changed files and Blast Radius.",
       "acceptanceCriteria": [
-        "Root README.md blast-radius bullet describes JS/TS static import analysis",
-        "evidence-demo/VALIDATION.md limitations section updated if it references TypeScript-only blast radius",
-        "Any non-TypeScript limitation bullets in README narrowed to non-JS/TS source files where appropriate",
-        "Typecheck passes"
+        "renderReport.ts Familiarity section labels each finding with the full file path (same string as in changedFiles)",
+        "Section context line updated from each touched area to each changed file (or equivalent)",
+        "Detail text uses file-scoped language only (commits to this file); no directory context, secondary labels, or in this area phrasing",
+        "Sort order preserved: unfamiliar (none) first, then moderate, then high; tie-break by file path",
+        "Familiarity lines use file names (e.g. product-carousel.css), not parent directory paths",
+        "renderReport.test.ts and cli.test.ts assert file-path labels",
+        "Typecheck passes",
+        "Tests pass"
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-006",
-      "title": "End-to-end verification with a JavaScript fixture",
-      "description": "As the team validating the experiment, I want an integration test proving the full CLI loop works when the changed file is JavaScript.",
+      "title": "Update design docs for per-file familiarity and require() blast radius",
+      "description": "As a future agent or developer, I want the LLD set to match implemented behavior.",
       "acceptanceCriteria": [
-        "CLI integration test or extended fixture repo includes a PR-like change to a .js file imported by other .js/.jsx modules",
-        "Report output shows blast-radius finding for the changed .js file with correct dependent count",
-        "Report does not list that .js file under not analyzed for blast radius",
-        "npm test passes in evidence-demo/",
+        "docs/design/0001-familiarity-analyzer.md updated: output is per touched file; git queries at file path; share and characterization at file level; directory aggregation removed from contract",
+        "docs/design/0002-blast-radius-analyzer.md confirmed consistent (already describes require); no stale ESM-only wording",
+        "docs/design/0003-evidence-report-and-cli.md updated: familiarity section describes per-file lines; import graph description mentions require extraction",
+        "docs/design/README.md scope mentions static import and static-literal require for blast radius",
+        "Root README.md and evidence-demo/VALIDATION.md updated if they still claim require is unsupported or familiarity is directory-scoped",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "End-to-end validation on realistic fixtures",
+      "description": "As the team validating the experiment, I want integration tests that mirror real PR output structure.",
+      "acceptanceCriteria": [
+        "CLI or integration test fixture includes a changed .js file depended on only via require(); report shows blast-radius finding with dependents",
+        "CLI or integration test fixture includes multiple changed files in the same directory; Familiarity shows separate lines per file with distinct counts where git history differs",
+        "npm run typecheck, npm run test, and npm run build pass in evidence-demo/",
         "Typecheck passes",
         "Tests pass"
       ],
-      "priority": 6,
-      "passes": true,
+      "priority": 7,
+      "passes": false,
       "notes": ""
     }
   ]

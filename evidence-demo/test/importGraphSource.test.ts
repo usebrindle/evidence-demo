@@ -244,3 +244,135 @@ describe("createImportGraph JavaScript files", () => {
     assert.deepEqual(graph.get("src/legacy/config.js"), ["src/consumer.ts"]);
   });
 });
+
+describe("createImportGraph require()", () => {
+  describe("basic .js require", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-require-basic-")
+      );
+
+      writeRepoFile(
+        repoPath,
+        "src/util.js",
+        "module.exports = { util: 1 };\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "src/consumer.js",
+        "const { util } = require('./util');\nmodule.exports = { value: util };\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("builds reverse-dependency map for .js required by another .js file", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("src/util.js"), ["src/consumer.js"]);
+    });
+  });
+
+  describe("mixed import and require", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-require-mixed-")
+      );
+
+      writeRepoFile(
+        repoPath,
+        "src/util.js",
+        "module.exports = { util: 1 };\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "src/mixed-import.js",
+        "import { util } from './util.js';\nexport const imported = util;\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "src/mixed-require.js",
+        "const { util } = require('./util');\nmodule.exports = { required: util };\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("merges import and require dependents on the same target", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("src/util.js"), [
+        "src/mixed-import.js",
+        "src/mixed-require.js",
+      ]);
+    });
+  });
+
+  describe("dynamic require and aliases", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-require-dynamic-")
+      );
+
+      writeRepoFile(
+        repoPath,
+        "src/util.js",
+        "module.exports = { util: 1 };\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "src/dynamic-require.js",
+        "function load(name) {\n  return require(name);\n}\nmodule.exports = { load };\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "src/alias-target.js",
+        "module.exports = { alias: true };\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "tsconfig.json",
+        JSON.stringify({
+          compilerOptions: {
+            baseUrl: ".",
+            paths: {
+              "@lib/*": ["src/*"],
+            },
+          },
+        })
+      );
+      writeRepoFile(
+        repoPath,
+        "src/alias-require.js",
+        "const target = require('@lib/alias-target');\nmodule.exports = target;\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("does not create edges for dynamic require(variable)", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.equal(graph.has("src/dynamic-require.js"), false);
+      assert.equal(graph.get("src/util.js"), undefined);
+    });
+
+    it("resolves require specifiers with tsconfig path aliases", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("src/alias-target.js"), ["src/alias-require.js"]);
+    });
+  });
+});
