@@ -13,7 +13,7 @@
 - `touchedAreaForPath()` maps touched files to directory areas (`src/foo.ts` → `src/`); `analyzeFamiliarity` deduplicates areas and queries history at directory level
 - `shareOfAreaChurn()` and `characterizeFamiliarity()` implement Slice 3 normalization/labels; high requires last touch ≤60 days plus (≥3 commits or ≥25% share); recency gates prevent stale history from yielding high
 - `createImportGraph(repoPath)` in `importGraphSource.ts` walks `.ts`/`.tsx` files (skips `node_modules`, `dist`, etc.), parses imports via the TypeScript AST, resolves relative specifiers (extensionless + index files), and returns reverse-dependency map `ImportGraph` (target → sorted importer paths)
-- Pure blast-radius analyzer in `src/analyzers/blastRadius.ts` injects `ImportGraph`; `countDirectImportersForFile` is Slice 1 (single-file dependent count + paths); `analyzeBlastRadius` is Slice 2 (US-009)
+- Pure blast-radius analyzer in `src/analyzers/blastRadius.ts` injects `ImportGraph`; `countDirectImportersForFile` is Slice 1 (single-file dependent count + paths); `analyzeBlastRadius` is Slice 2 (US-009): `characterizeBlastRadius` labels isolated (0-2), moderate (3-10), broad (11+); `sampleDependents` caps named dependents at `DEPENDENT_SAMPLE_SIZE` (5) while `dependentCount` keeps the full total; skips non-TS changed files
 
 ---
 ## Wed, Jun 17, 2026 - US-001
@@ -116,5 +116,16 @@
 - **Learnings for future iterations:**
   - Slice 1 function is `countDirectImportersForFile`; keep `analyzeBlastRadius` for characterization/dependents in US-009
   - Normalize changed file paths with forward slashes before graph lookup (Windows compatibility)
+  - Manual browser verification not needed (no UI changes)
+---
+## Wed, Jun 17, 2026 - US-009
+- Implemented `analyzeBlastRadius` (Slice 2): per changed TypeScript file, characterizes blast radius as isolated/moderate/broad and includes a sample of dependent module paths
+- Added `characterizeBlastRadius` (0-2 isolated, 3-10 moderate, 11+ broad) and `sampleDependents` (caps at 5 paths; full count in `dependentCount`)
+- Skips non-TypeScript changed files; normalizes paths to forward slashes in findings
+- Added unit tests for characterization/sampling and integration test against real import graph
+- Files changed: `evidence-demo/src/analyzers/blastRadius.ts`, `evidence-demo/test/blastRadius.test.ts`, `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Export `characterizeBlastRadius` and `sampleDependents` for deterministic unit tests
+  - `dependentCount` is always the full importer count; `dependents` array is the sample for display
   - Manual browser verification not needed (no UI changes)
 ---
