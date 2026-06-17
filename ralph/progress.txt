@@ -53,3 +53,12 @@
   - Always set `passes: true` in `ralph/prd.json` in the same commit as the story implementation
   - Manual browser verification not needed (no UI changes)
 ---
+## Wed, Jun 17, 2026 - US-003 (verification)
+- Verified existing `createGitHistorySource` implementation meets all acceptance criteria; prior commit `61e359f` had not updated `prd.json`
+- Confirmed git log queries for author commits, total area churn, and last-touch date with hardcoded 6-month window via `historyWindowSince()`
+- `npm run typecheck` and `npm run test` pass (7 gitHistorySource integration tests)
+- Files changed: `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Always set `passes: true` in `ralph/prd.json` in the same commit as the story implementation
+  - Manual browser verification not needed (no UI changes)
+---
