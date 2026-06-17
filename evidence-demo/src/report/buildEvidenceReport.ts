@@ -5,6 +5,7 @@
 import type { FamiliarityFinding } from "../analyzers/familiarity.js";
 import type { BlastRadiusFinding } from "../analyzers/blastRadius.js";
 import type { AuthorIdentity } from "../inputs/changedFiles.js";
+import { isAnalyzableSourceFile } from "../inputs/importGraphSource.js";
 
 export interface EvidenceReport {
   author: AuthorIdentity;
@@ -28,13 +29,9 @@ export interface BuildEvidenceReportInput {
 export function buildEvidenceReport(
   input: BuildEvidenceReportInput
 ): EvidenceReport {
-  const tsExtensions = [".ts", ".tsx", ".mts", ".cts"];
-  const isTypeScript = (file: string): boolean =>
-    tsExtensions.some((ext) => file.endsWith(ext));
-
   const analyzedFiles = new Set(input.blastRadius.map((f) => f.changedFile));
   const notAnalyzedForBlastRadius = input.changedFiles.filter(
-    (file) => !isTypeScript(file) && !analyzedFiles.has(file)
+    (file) => !isAnalyzableSourceFile(file) && !analyzedFiles.has(file)
   );
 
   return {
@@ -46,7 +43,7 @@ export function buildEvidenceReport(
     notAnalyzedForBlastRadius,
     limitations: [
       "Direct static importers only; transitive dependency impact is not computed.",
-      "TypeScript static imports only; dynamic imports and non-TS files are excluded from blast-radius analysis.",
+      "JavaScript/TypeScript static imports only; CommonJS require() is not analyzed; dynamic imports and non-source files are excluded from blast-radius analysis.",
       "Git history does not account for renames, squashes, co-authored commits, or bot attribution.",
       "Familiarity window is fixed at 6 months.",
       "No risk score or merge recommendation is produced.",

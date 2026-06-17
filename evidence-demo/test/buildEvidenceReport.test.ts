@@ -98,7 +98,7 @@ describe("buildEvidenceReport", () => {
     assert.equal(finding.characterization, "moderate");
   });
 
-  it("lists non-TypeScript changed files under not analyzed for blast radius", () => {
+  it("lists non-analyzable changed files under not analyzed for blast radius", () => {
     const report = buildEvidenceReport({
       author,
       changedFiles: ["src/util.ts", "README.md", "package.json"],
@@ -112,7 +112,7 @@ describe("buildEvidenceReport", () => {
     ]);
   });
 
-  it("does not list TypeScript files in not analyzed when they have blast-radius findings", () => {
+  it("does not list analyzable JS/TS files in not analyzed when they have blast-radius findings", () => {
     const report = buildEvidenceReport({
       author,
       changedFiles: ["src/util.ts", "src/other.ts"],
@@ -121,6 +121,34 @@ describe("buildEvidenceReport", () => {
     });
 
     assert.deepEqual(report.notAnalyzedForBlastRadius, []);
+  });
+
+  it("does not list changed JavaScript files in not analyzed when they have blast-radius findings", () => {
+    const jsBlastRadius: BlastRadiusFinding[] = [
+      {
+        changedFile: "src/util.js",
+        dependentCount: 2,
+        dependents: ["src/a.js", "src/b.jsx"],
+        characterization: "isolated",
+      },
+    ];
+
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["src/util.js", "README.md"],
+      familiarity: [],
+      blastRadius: jsBlastRadius,
+    });
+
+    assert.deepEqual(report.notAnalyzedForBlastRadius, ["README.md"]);
+    assert.ok(
+      report.limitations.some((item) =>
+        item.includes("JavaScript/TypeScript static imports only")
+      )
+    );
+    assert.ok(
+      report.limitations.some((item) => item.includes("CommonJS require()"))
+    );
   });
 
   it("states explicit limitations and omits a risk score or merge recommendation", () => {

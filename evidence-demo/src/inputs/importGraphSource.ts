@@ -1,5 +1,5 @@
 /**
- * Impure edge: parses TypeScript imports from a local clone.
+ * Impure edge: parses JS/TS imports from a local clone.
  * Builds reverse-dependency view: module → modules that import it.
  */
 
@@ -8,6 +8,8 @@ import path from "node:path";
 import ts from "typescript";
 
 export type ImportGraph = ReadonlyMap<string, readonly string[]>;
+
+const IN_SCOPE_SOURCE_EXTENSION = /\.(jsx?|mjs|cjs|tsx?|mts|cts)$/;
 
 const SKIP_DIRS = new Set([
   "node_modules",
@@ -21,7 +23,12 @@ function normalizeRepoPath(relativePath: string): string {
   return relativePath.split(path.sep).join("/");
 }
 
-function collectTypeScriptFiles(repoPath: string): string[] {
+export function isAnalyzableSourceFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, "/");
+  return IN_SCOPE_SOURCE_EXTENSION.test(normalized);
+}
+
+function collectSourceFiles(repoPath: string): string[] {
   const files: string[] = [];
 
   function walk(dir: string): void {
@@ -31,7 +38,7 @@ function collectTypeScriptFiles(repoPath: string): string[] {
           continue;
         }
         walk(path.join(dir, entry.name));
-      } else if (/\.tsx?$/.test(entry.name)) {
+      } else if (isAnalyzableSourceFile(entry.name)) {
         files.push(
           normalizeRepoPath(path.relative(repoPath, path.join(dir, entry.name)))
         );
@@ -90,10 +97,20 @@ function resolveRelativeModule(
     relativeBase,
     `${relativeBase}.ts`,
     `${relativeBase}.tsx`,
+    `${relativeBase}.mts`,
+    `${relativeBase}.cts`,
     `${relativeBase}.js`,
     `${relativeBase}.jsx`,
+    `${relativeBase}.mjs`,
+    `${relativeBase}.cjs`,
     `${relativeBase}/index.ts`,
     `${relativeBase}/index.tsx`,
+    `${relativeBase}/index.mts`,
+    `${relativeBase}/index.cts`,
+    `${relativeBase}/index.js`,
+    `${relativeBase}/index.jsx`,
+    `${relativeBase}/index.mjs`,
+    `${relativeBase}/index.cjs`,
   ];
 
   for (const candidate of candidates) {
@@ -148,7 +165,7 @@ function resolveAliasedModule(
     return null;
   }
 
-  if (!/\.tsx?$/.test(resolvedFileName)) {
+  if (!isAnalyzableSourceFile(resolvedFileName)) {
     return null;
   }
 
@@ -177,13 +194,28 @@ function resolveModule(
   );
 }
 
+function scriptKindForFile(filePath: string): ts.ScriptKind {
+  if (filePath.endsWith(".tsx")) {
+    return ts.ScriptKind.TSX;
+  }
+  if (filePath.endsWith(".jsx")) {
+    return ts.ScriptKind.JSX;
+  }
+  if (
+    filePath.endsWith(".ts") ||
+    filePath.endsWith(".mts") ||
+    filePath.endsWith(".cts")
+  ) {
+    return ts.ScriptKind.TS;
+  }
+  return ts.ScriptKind.JS;
+}
+
 function extractImportSpecifiers(
   sourceText: string,
   filePath: string
 ): string[] {
-  const scriptKind = filePath.endsWith(".tsx")
-    ? ts.ScriptKind.TSX
-    : ts.ScriptKind.TS;
+  const scriptKind = scriptKindForFile(filePath);
   const sourceFile = ts.createSourceFile(
     filePath,
     sourceText,
@@ -226,10 +258,10 @@ function extractImportSpecifiers(
 export function createImportGraph(repoPath: string): ImportGraph {
   const resolvedRepo = path.resolve(repoPath);
   const compilerOptions = loadCompilerOptions(resolvedRepo);
-  const tsFiles = collectTypeScriptFiles(resolvedRepo);
+  const sourceFiles = collectSourceFiles(resolvedRepo);
   const graph = new Map<string, Set<string>>();
 
-  for (const file of tsFiles) {
+  for (const file of sourceFiles) {
     const fullPath = path.join(resolvedRepo, file);
     const sourceText = readFileSync(fullPath, "utf8");
     const specifiers = extractImportSpecifiers(sourceText, file);

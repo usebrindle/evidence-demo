@@ -211,11 +211,11 @@ export function renderReport(
     "",
     "Blast Radius",
     "------------",
-    "  Direct static importers of each changed TypeScript file."
+    "  Direct static importers of each changed JavaScript or TypeScript source file."
   );
 
   if (blastRadius.length === 0) {
-    lines.push("  (no TypeScript changed files to analyze)");
+    lines.push("  (no analyzable JS/TS changed files to analyze)");
   } else {
     for (const finding of blastRadius) {
       lines.push(...renderBlastRadiusFinding(finding));
@@ -225,7 +225,7 @@ export function renderReport(
   if (report.notAnalyzedForBlastRadius.length > 0) {
     lines.push("", "Not Analyzed for Blast Radius", "-----------------------------");
     lines.push(
-      "  Blast-radius analysis covers TypeScript static imports only."
+      "  Blast-radius analysis covers JavaScript/TypeScript static imports only; CommonJS require() is not analyzed."
     );
     for (const file of report.notAnalyzedForBlastRadius) {
       lines.push(`  ${file}`);

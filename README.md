@@ -7,7 +7,7 @@ This is a **test rig**, not the product. The GitHub Action remains the product. 
 **Computes two evidence signals:**
 
 1. **Author-module familiarity** — git history over 6 months (language-agnostic)
-2. **Reverse-dependency blast radius** — TypeScript static import graph (direct importers only)
+2. **Reverse-dependency blast radius** — JavaScript/TypeScript static import graph (direct importers only)
 
 No risk score. No merge recommendation. Evidence only.
 
@@ -49,7 +49,7 @@ Requires local clones under `$EVIDENCE_VALIDATION_DIR` (default `/tmp/evidence-v
 ```bash
 cd evidence-demo
 npm run typecheck
-npm run test    # 70 tests
+npm run test    # 76 tests
 npm run build
 ```
 
@@ -72,7 +72,7 @@ docs/design/       Low-level design docs (LLDs) for the experiment
 Documented in report output and VALIDATION.md. Notable gaps deferred to product work if validated:
 
 - Monorepo / cross-package import resolution (blast radius undercounts)
-- Transitive dependencies, dynamic imports, non-TypeScript files
+- Transitive dependencies, dynamic imports, CommonJS `require()`, non-JS/TS source files
 - Git robustness (renames, squashes, bots, co-authors)
 - Three additional evidence items not yet implemented
 

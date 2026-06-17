@@ -3,7 +3,10 @@
  * Inputs: changed files and an import graph.
  */
 
-import type { ImportGraph } from "../inputs/importGraphSource.js";
+import {
+  isAnalyzableSourceFile,
+  type ImportGraph,
+} from "../inputs/importGraphSource.js";
 
 export type BlastRadiusCharacterization = "isolated" | "moderate" | "broad";
 
@@ -25,7 +28,7 @@ export interface DirectImporterResult {
 }
 
 /**
- * Slice 1: count direct importers of one changed TypeScript file.
+ * Slice 1: count direct importers of one changed JS/TS source file.
  * Pure — no file I/O; uses the injected import graph.
  */
 export function countDirectImportersForFile(
@@ -39,13 +42,6 @@ export function countDirectImportersForFile(
     dependentCount: dependents.length,
     dependents,
   };
-}
-
-const TS_EXTENSIONS = [".ts", ".tsx", ".mts", ".cts"];
-
-function isTypeScriptFile(filePath: string): boolean {
-  const normalized = filePath.replace(/\\/g, "/");
-  return TS_EXTENSIONS.some((ext) => normalized.endsWith(ext));
 }
 
 /** Max dependent paths included in a finding; full count stays in dependentCount. */
@@ -75,12 +71,12 @@ export function sampleDependents(
 }
 
 /**
- * Slice 2: structured blast-radius finding per changed TypeScript file.
+ * Slice 2: structured blast-radius finding per changed JS/TS source file.
  * Pure — no file I/O; uses the injected import graph.
  */
 export function analyzeBlastRadius(input: BlastRadiusInput): BlastRadiusFinding[] {
   return input.changedFiles
-    .filter(isTypeScriptFile)
+    .filter(isAnalyzableSourceFile)
     .map((changedFile) => {
       const { dependentCount, dependents } = countDirectImportersForFile(
         changedFile,

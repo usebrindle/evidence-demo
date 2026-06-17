@@ -137,7 +137,7 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /src\/auth\.ts — isolated/);
     assert.match(output, /Imported by 2 modules, including src\/login\.ts, src\/signup\.ts/);
     assert.match(output, /Limitations/);
-    assert.doesNotMatch(output, /no TypeScript changed files to analyze/);
+    assert.doesNotMatch(output, /no analyzable JS\/TS changed files to analyze/);
   });
 
   it("prints a complete report for a branch name", () => {
@@ -152,7 +152,7 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /Imported by 2 modules/);
   });
 
-  it("lists non-TypeScript changed files under not-analyzed for blast radius", () => {
+  it("lists non-analyzable changed files under not-analyzed for blast radius", () => {
     writeRepoFile(repoPath, "docs/guide.md", "# Guide\n");
     commitAs(
       repoPath,
@@ -168,8 +168,68 @@ describe("runEvidenceDemo", () => {
 
     assert.match(output, /Not Analyzed for Blast Radius/);
     assert.match(output, /docs\/guide\.md/);
-    assert.match(output, /Blast-radius analysis covers TypeScript static imports only/);
+    assert.match(
+      output,
+      /Blast-radius analysis covers JavaScript\/TypeScript static imports only; CommonJS require\(\) is not analyzed/
+    );
     assert.match(output, /src\/auth\.ts — isolated/);
+  });
+
+  it("produces a complete end-to-end report when the changed file is JavaScript", () => {
+    const jsRepo = mkdtempSync(path.join(os.tmpdir(), "evidence-demo-js-e2e-"));
+    try {
+      git(jsRepo, ["init"]);
+      git(jsRepo, ["config", "user.name", "Setup"]);
+      git(jsRepo, ["config", "user.email", "setup@example.com"]);
+
+      writeRepoFile(jsRepo, "src/core.js", "export const core = 1;\n");
+      writeRepoFile(
+        jsRepo,
+        "src/a.js",
+        "import { core } from './core.js';\nexport const a = core;\n"
+      );
+      writeRepoFile(
+        jsRepo,
+        "src/b.jsx",
+        "import { core } from './core.js';\nexport const b = core;\n"
+      );
+      writeRepoFile(
+        jsRepo,
+        "src/c.js",
+        "import { core } from './core.js';\nexport const c = core;\n"
+      );
+      commitAs(
+        jsRepo,
+        { name: "Carol Core", email: "carol@example.com" },
+        daysAgo(90),
+        "init core"
+      );
+      const base = git(jsRepo, ["rev-parse", "HEAD"]);
+
+      writeRepoFile(jsRepo, "src/core.js", "export const core = 2;\n");
+      commitAs(
+        jsRepo,
+        { name: "Dev User", email: "dev@example.com" },
+        daysAgo(15),
+        "dev updates core"
+      );
+      const head = git(jsRepo, ["rev-parse", "HEAD"]);
+
+      const output = runEvidenceDemo(jsRepo, `${base}...${head}`, {
+        asOf: REFERENCE_DATE,
+      });
+
+      assert.match(output, /Author: Dev User <dev@example.com>/);
+      assert.match(output, /Familiarity/);
+      assert.match(output, /src\/ —/);
+      assert.match(output, /Blast Radius/);
+      assert.match(output, /src\/core\.js — moderate/);
+      assert.match(output, /Imported by 3 modules/);
+      assert.match(output, /Limitations/);
+      assert.doesNotMatch(output, /Not Analyzed for Blast Radius/);
+    } finally {
+      rmSync(jsRepo, { recursive: true, force: true });
+    }
   });
 
   it("produces a complete end-to-end report against a TypeScript repo with importers", () => {
