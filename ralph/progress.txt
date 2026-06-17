@@ -14,6 +14,7 @@
 - `shareOfAreaChurn()` and `characterizeFamiliarity()` implement Slice 3 normalization/labels; high requires last touch ≤60 days plus (≥3 commits or ≥25% share); recency gates prevent stale history from yielding high
 - `createImportGraph(repoPath)` in `importGraphSource.ts` walks `.ts`/`.tsx` files (skips `node_modules`, `dist`, etc.), parses imports via the TypeScript AST, resolves relative specifiers (extensionless + index files) and tsconfig/jsconfig `paths` aliases via `ts.resolveModuleName`, and returns reverse-dependency map `ImportGraph` (target → sorted importer paths)
 - Pure blast-radius analyzer in `src/analyzers/blastRadius.ts` injects `ImportGraph`; `countDirectImportersForFile` is Slice 1 (single-file dependent count + paths); `analyzeBlastRadius` is Slice 2 (US-009): `characterizeBlastRadius` labels isolated (0-2), moderate (3-10), broad (11+); `sampleDependents` caps named dependents at `DEPENDENT_SAMPLE_SIZE` (5) while `dependentCount` keeps the full total; skips non-TS changed files
+- Pure report assembly in `src/report/buildEvidenceReport.ts`: `buildEvidenceReport({ author, changedFiles, familiarity, blastRadius })` → `EvidenceReport` with full finding objects, `notAnalyzedForBlastRadius` for non-TS changed files, and a fixed `limitations` list (no risk score or merge recommendation)
 
 ---
 ## Wed, Jun 17, 2026 - US-001
@@ -138,5 +139,14 @@
   - Use `ts.parseJsonConfigFileContent` on repo-root tsconfig to get `paths` + `baseUrl` for alias resolution
   - `resolveModule` tries relative specifiers first, then delegates non-relative specifiers to TypeScript module resolution
   - Filter resolved paths with `isPathInsideRepo` and `.tsx?$` check to avoid counting node_modules targets
+  - Manual browser verification not needed (no UI changes)
+---
+## Wed, Jun 17, 2026 - US-011
+- Verified and tested pure `buildEvidenceReport`: assembles author, changed files, familiarity findings (with supporting numbers), blast-radius findings (dependent count + sample paths), non-TS `notAnalyzedForBlastRadius`, and explicit limitations
+- Added 6 unit tests covering assembly, supporting numbers, dependents, non-TS exclusion, and no risk score/recommendation fields
+- Files changed: `evidence-demo/test/buildEvidenceReport.test.ts`, `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - `buildEvidenceReport.ts` was scaffolded in US-001; US-011 adds test coverage and marks the story complete
+  - `notAnalyzedForBlastRadius` lists non-TypeScript changed files only; TS files are expected in `blastRadius` from `analyzeBlastRadius`
   - Manual browser verification not needed (no UI changes)
 ---
