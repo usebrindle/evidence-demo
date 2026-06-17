@@ -12,7 +12,7 @@
 - Pure familiarity analyzer in `src/analyzers/familiarity.ts` injects `GitHistorySource`; use optional `asOf` date param for deterministic tests; `countAuthorCommitsToFile` is Slice 1, `analyzeFamiliarity` is Slice 2 (directory aggregation + recency)
 - `touchedAreaForPath()` maps touched files to directory areas (`src/foo.ts` → `src/`); `analyzeFamiliarity` deduplicates areas and queries history at directory level
 - `shareOfAreaChurn()` and `characterizeFamiliarity()` implement Slice 3 normalization/labels; high requires last touch ≤60 days plus (≥3 commits or ≥25% share); recency gates prevent stale history from yielding high
-- `createImportGraph(repoPath)` in `importGraphSource.ts` walks `.ts`/`.tsx` files (skips `node_modules`, `dist`, etc.), parses imports via the TypeScript AST, resolves relative specifiers (extensionless + index files), and returns reverse-dependency map `ImportGraph` (target → sorted importer paths)
+- `createImportGraph(repoPath)` in `importGraphSource.ts` walks `.ts`/`.tsx` files (skips `node_modules`, `dist`, etc.), parses imports via the TypeScript AST, resolves relative specifiers (extensionless + index files) and tsconfig/jsconfig `paths` aliases via `ts.resolveModuleName`, and returns reverse-dependency map `ImportGraph` (target → sorted importer paths)
 - Pure blast-radius analyzer in `src/analyzers/blastRadius.ts` injects `ImportGraph`; `countDirectImportersForFile` is Slice 1 (single-file dependent count + paths); `analyzeBlastRadius` is Slice 2 (US-009): `characterizeBlastRadius` labels isolated (0-2), moderate (3-10), broad (11+); `sampleDependents` caps named dependents at `DEPENDENT_SAMPLE_SIZE` (5) while `dependentCount` keeps the full total; skips non-TS changed files
 
 ---
@@ -127,5 +127,16 @@
 - **Learnings for future iterations:**
   - Export `characterizeBlastRadius` and `sampleDependents` for deterministic unit tests
   - `dependentCount` is always the full importer count; `dependents` array is the sample for display
+  - Manual browser verification not needed (no UI changes)
+---
+## Wed, Jun 17, 2026 - US-010
+- Extended `createImportGraph` to resolve tsconfig/jsconfig path aliases via `ts.resolveModuleName` in addition to relative imports
+- Loads compiler options from repo-root `tsconfig.json` or `jsconfig.json`; alias-resolved imports map to in-repo `.ts`/`.tsx` modules only
+- Blast-radius dependent counts now reflect alias imports (verified via integration test with `@lib/*` → `src/lib/*`)
+- Files changed: `evidence-demo/src/inputs/importGraphSource.ts`, `evidence-demo/test/importGraphSource.test.ts`, `evidence-demo/test/blastRadius.test.ts`, `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Use `ts.parseJsonConfigFileContent` on repo-root tsconfig to get `paths` + `baseUrl` for alias resolution
+  - `resolveModule` tries relative specifiers first, then delegates non-relative specifiers to TypeScript module resolution
+  - Filter resolved paths with `isPathInsideRepo` and `.tsx?$` check to avoid counting node_modules targets
   - Manual browser verification not needed (no UI changes)
 ---

@@ -295,3 +295,68 @@ describe("analyzeBlastRadius integration", () => {
     assert.deepEqual(isolatedFinding.dependents, []);
   });
 });
+
+describe("analyzeBlastRadius path alias integration", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-blast-radius-alias-")
+    );
+
+    writeRepoFile(
+      repoPath,
+      "tsconfig.json",
+      JSON.stringify({
+        compilerOptions: {
+          baseUrl: ".",
+          paths: {
+            "@lib/*": ["src/lib/*"],
+          },
+        },
+      })
+    );
+    writeRepoFile(
+      repoPath,
+      "src/lib/util.ts",
+      "export const util = 1;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/alias-a.ts",
+      "import { util } from '@lib/util';\nexport const a = util;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/alias-b.ts",
+      "import { util } from '@lib/util';\nexport const b = util;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/alias-c.ts",
+      "import { util } from '@lib/util';\nexport const c = util;\n"
+    );
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("counts alias-resolved importers for blast-radius findings", () => {
+    const graph = createImportGraph(repoPath);
+
+    const findings = analyzeBlastRadius({
+      changedFiles: ["src/lib/util.ts"],
+      importGraph: graph,
+    });
+
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].dependentCount, 3);
+    assert.equal(findings[0].characterization, "moderate");
+    assert.deepEqual(findings[0].dependents, [
+      "src/alias-a.ts",
+      "src/alias-b.ts",
+      "src/alias-c.ts",
+    ]);
+  });
+});

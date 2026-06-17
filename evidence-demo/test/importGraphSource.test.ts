@@ -111,3 +111,60 @@ describe("createImportGraph", () => {
     assert.equal(graph.get("src/util.ts")?.includes("node_modules/ignored/pkg.ts"), false);
   });
 });
+
+describe("createImportGraph path aliases", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-import-graph-alias-")
+    );
+
+    writeRepoFile(
+      repoPath,
+      "tsconfig.json",
+      JSON.stringify({
+        compilerOptions: {
+          baseUrl: ".",
+          paths: {
+            "@lib/*": ["src/lib/*"],
+          },
+        },
+      })
+    );
+    writeRepoFile(
+      repoPath,
+      "src/lib/util.ts",
+      "export const util = 1;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/alias-a.ts",
+      "import { util } from '@lib/util';\nexport const a = util;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/alias-b.ts",
+      "import { util } from '@lib/util';\nexport const b = util;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/relative.ts",
+      "import { util } from './lib/util';\nexport const relative = util;\n"
+    );
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("resolves tsconfig path aliases to repo modules", () => {
+    const graph = createImportGraph(repoPath);
+
+    assert.deepEqual(graph.get("src/lib/util.ts"), [
+      "src/alias-a.ts",
+      "src/alias-b.ts",
+      "src/relative.ts",
+    ]);
+  });
+});

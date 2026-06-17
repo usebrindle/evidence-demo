@@ -43,15 +43,45 @@ function collectTypeScriptFiles(repoPath: string): string[] {
   return files.sort();
 }
 
+function findTsConfig(repoPath: string): string | null {
+  for (const name of ["tsconfig.json", "jsconfig.json"]) {
+    const candidate = path.join(repoPath, name);
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+function loadCompilerOptions(repoPath: string): ts.CompilerOptions | null {
+  const configPath = findTsConfig(repoPath);
+  if (configPath === null) {
+    return null;
+  }
+
+  const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
+  if (configFile.error) {
+    return null;
+  }
+
+  const parsed = ts.parseJsonConfigFileContent(
+    configFile.config,
+    ts.sys,
+    path.dirname(configPath)
+  );
+
+  if (!parsed.options.paths && !parsed.options.baseUrl) {
+    return null;
+  }
+
+  return parsed.options;
+}
+
 function resolveRelativeModule(
   repoPath: string,
   importerRelativePath: string,
   specifier: string
 ): string | null {
-  if (!specifier.startsWith(".")) {
-    return null;
-  }
-
   const importerDir = path.dirname(path.join(repoPath, importerRelativePath));
   const joined = path.resolve(importerDir, specifier);
   const relativeBase = normalizeRepoPath(path.relative(repoPath, joined));
@@ -76,7 +106,78 @@ function resolveRelativeModule(
   return null;
 }
 
-function extractRelativeImportSpecifiers(
+function createModuleResolutionHost(repoPath: string): ts.ModuleResolutionHost {
+  return {
+    fileExists: (fileName) => existsSync(fileName),
+    readFile: (fileName) => readFileSync(fileName, "utf8"),
+    directoryExists: (dirName) =>
+      existsSync(dirName) && statSync(dirName).isDirectory(),
+    getCurrentDirectory: () => repoPath,
+    realpath: (fileName) => fileName,
+  };
+}
+
+function isPathInsideRepo(repoPath: string, filePath: string): boolean {
+  const resolvedRepo = path.resolve(repoPath);
+  const resolvedFile = path.resolve(filePath);
+  const relative = path.relative(resolvedRepo, resolvedFile);
+  return relative === "" || !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function resolveAliasedModule(
+  repoPath: string,
+  importerRelativePath: string,
+  specifier: string,
+  compilerOptions: ts.CompilerOptions
+): string | null {
+  const containingFile = path.join(repoPath, importerRelativePath);
+  const host = createModuleResolutionHost(repoPath);
+  const result = ts.resolveModuleName(
+    specifier,
+    containingFile,
+    compilerOptions,
+    host
+  );
+
+  if (!result.resolvedModule) {
+    return null;
+  }
+
+  const resolvedFileName = result.resolvedModule.resolvedFileName;
+  if (!isPathInsideRepo(repoPath, resolvedFileName)) {
+    return null;
+  }
+
+  if (!/\.tsx?$/.test(resolvedFileName)) {
+    return null;
+  }
+
+  return normalizeRepoPath(path.relative(repoPath, resolvedFileName));
+}
+
+function resolveModule(
+  repoPath: string,
+  importerRelativePath: string,
+  specifier: string,
+  compilerOptions: ts.CompilerOptions | null
+): string | null {
+  if (specifier.startsWith(".")) {
+    return resolveRelativeModule(repoPath, importerRelativePath, specifier);
+  }
+
+  if (compilerOptions === null) {
+    return null;
+  }
+
+  return resolveAliasedModule(
+    repoPath,
+    importerRelativePath,
+    specifier,
+    compilerOptions
+  );
+}
+
+function extractImportSpecifiers(
   sourceText: string,
   filePath: string
 ): string[] {
@@ -124,16 +225,17 @@ function extractRelativeImportSpecifiers(
 
 export function createImportGraph(repoPath: string): ImportGraph {
   const resolvedRepo = path.resolve(repoPath);
+  const compilerOptions = loadCompilerOptions(resolvedRepo);
   const tsFiles = collectTypeScriptFiles(resolvedRepo);
   const graph = new Map<string, Set<string>>();
 
   for (const file of tsFiles) {
     const fullPath = path.join(resolvedRepo, file);
     const sourceText = readFileSync(fullPath, "utf8");
-    const specifiers = extractRelativeImportSpecifiers(sourceText, file);
+    const specifiers = extractImportSpecifiers(sourceText, file);
 
     for (const specifier of specifiers) {
-      const target = resolveRelativeModule(resolvedRepo, file, specifier);
+      const target = resolveModule(resolvedRepo, file, specifier, compilerOptions);
       if (target === null) {
         continue;
       }
