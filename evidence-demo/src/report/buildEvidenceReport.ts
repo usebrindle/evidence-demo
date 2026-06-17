@@ -42,8 +42,9 @@ export function buildEvidenceReport(
     blastRadius: input.blastRadius,
     notAnalyzedForBlastRadius,
     limitations: [
-      "Direct static importers only; transitive dependency impact is not computed.",
-      "JavaScript/TypeScript static imports only; CommonJS require() is not analyzed; dynamic imports and non-source files are excluded from blast-radius analysis.",
+      "Direct static dependents only; transitive dependency impact is not computed.",
+      "Blast radius counts static ESM import and static-literal CommonJS require() dependents; dynamic require(), runtime indirection, and non-literal dynamic import() are not counted; non-source files are excluded.",
+      "On platforms with non-import/require wiring (e.g. SFCC cartridge paths), blast-radius counts may be a lower bound.",
       "Git history does not account for renames, squashes, co-authored commits, or bot attribution.",
       "Familiarity window is fixed at 6 months.",
       "No risk score or merge recommendation is produced.",

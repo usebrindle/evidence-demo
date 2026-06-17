@@ -82,11 +82,11 @@ describe("renderReport", () => {
 
     assert.match(
       text,
-      /src\/util\.ts — broad[\s\S]*Imported by 34 modules, including src\/a\.ts, src\/b\.ts, src\/c\.ts, src\/d\.ts, src\/e\.ts \(and 29 more\)\./
+      /src\/util\.ts — broad[\s\S]*Depended on by 34 modules, including src\/a\.ts, src\/b\.ts, src\/c\.ts, src\/d\.ts, src\/e\.ts \(and 29 more\)\./
     );
     assert.match(
       text,
-      /src\/isolated\.ts — isolated[\s\S]*Imported by no modules\./
+      /src\/isolated\.ts — isolated[\s\S]*Depended on by no modules\./
     );
   });
 
@@ -121,7 +121,7 @@ describe("renderReport", () => {
     assert.match(text, /Not Analyzed for Blast Radius/);
     assert.match(
       text,
-      /Blast-radius analysis covers JavaScript\/TypeScript static imports only; CommonJS require\(\) is not analyzed\./
+      /Blast-radius analysis covers JavaScript\/TypeScript source files only\./
     );
     assert.match(text, /README\.md/);
     assert.match(text, /package\.json/);
@@ -148,7 +148,7 @@ describe("renderReport", () => {
     assert.match(text, /Blast Radius\n-{12}/);
     assert.match(
       text,
-      /Direct static importers of each changed JavaScript or TypeScript source file\./
+      /Direct static import and require\(\) dependents of each changed JavaScript or TypeScript source file\./
     );
     assert.ok(text.endsWith(report.limitations.at(-1)!));
   });

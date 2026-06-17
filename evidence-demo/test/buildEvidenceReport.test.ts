@@ -143,11 +143,11 @@ describe("buildEvidenceReport", () => {
     assert.deepEqual(report.notAnalyzedForBlastRadius, ["README.md"]);
     assert.ok(
       report.limitations.some((item) =>
-        item.includes("JavaScript/TypeScript static imports only")
+        item.includes("static ESM import and static-literal CommonJS require()")
       )
     );
     assert.ok(
-      report.limitations.some((item) => item.includes("CommonJS require()"))
+      report.limitations.some((item) => item.includes("dynamic require()"))
     );
   });
 

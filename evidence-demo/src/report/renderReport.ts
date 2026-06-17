@@ -115,23 +115,23 @@ function renderFamiliarityFinding(
 
 function formatDependentSample(finding: BlastRadiusFinding): string {
   if (finding.dependentCount === 0) {
-    return "Imported by no modules.";
+    return "Depended on by no modules.";
   }
 
   const moduleWord = finding.dependentCount === 1 ? "module" : "modules";
   const remaining = finding.dependentCount - finding.dependents.length;
 
   if (finding.dependents.length === 0) {
-    return `Imported by ${finding.dependentCount} ${moduleWord}.`;
+    return `Depended on by ${finding.dependentCount} ${moduleWord}.`;
   }
 
   const listed = finding.dependents.join(", ");
   if (remaining <= 0) {
-    return `Imported by ${finding.dependentCount} ${moduleWord}, including ${listed}.`;
+    return `Depended on by ${finding.dependentCount} ${moduleWord}, including ${listed}.`;
   }
 
   const moreWord = remaining === 1 ? "1 more" : `${remaining} more`;
-  return `Imported by ${finding.dependentCount} ${moduleWord}, including ${listed} (and ${moreWord}).`;
+  return `Depended on by ${finding.dependentCount} ${moduleWord}, including ${listed} (and ${moreWord}).`;
 }
 
 function renderBlastRadiusFinding(finding: BlastRadiusFinding): string[] {
@@ -211,7 +211,7 @@ export function renderReport(
     "",
     "Blast Radius",
     "------------",
-    "  Direct static importers of each changed JavaScript or TypeScript source file."
+    "  Direct static import and require() dependents of each changed JavaScript or TypeScript source file."
   );
 
   if (blastRadius.length === 0) {
@@ -225,7 +225,7 @@ export function renderReport(
   if (report.notAnalyzedForBlastRadius.length > 0) {
     lines.push("", "Not Analyzed for Blast Radius", "-----------------------------");
     lines.push(
-      "  Blast-radius analysis covers JavaScript/TypeScript static imports only; CommonJS require() is not analyzed."
+      "  Blast-radius analysis covers JavaScript/TypeScript source files only."
     );
     for (const file of report.notAnalyzedForBlastRadius) {
       lines.push(`  ${file}`);
