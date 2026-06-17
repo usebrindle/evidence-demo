@@ -23,8 +23,9 @@ function normalizeRepoPath(relativePath: string): string {
   return relativePath.split(path.sep).join("/");
 }
 
-function isInScopeSourceFile(filePath: string): boolean {
-  return IN_SCOPE_SOURCE_EXTENSION.test(filePath);
+export function isAnalyzableSourceFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, "/");
+  return IN_SCOPE_SOURCE_EXTENSION.test(normalized);
 }
 
 function collectSourceFiles(repoPath: string): string[] {
@@ -37,7 +38,7 @@ function collectSourceFiles(repoPath: string): string[] {
           continue;
         }
         walk(path.join(dir, entry.name));
-      } else if (isInScopeSourceFile(entry.name)) {
+      } else if (isAnalyzableSourceFile(entry.name)) {
         files.push(
           normalizeRepoPath(path.relative(repoPath, path.join(dir, entry.name)))
         );
@@ -164,7 +165,7 @@ function resolveAliasedModule(
     return null;
   }
 
-  if (!isInScopeSourceFile(resolvedFileName)) {
+  if (!isAnalyzableSourceFile(resolvedFileName)) {
     return null;
   }
 

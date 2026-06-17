@@ -201,15 +201,43 @@ describe("analyzeBlastRadius", () => {
     assert.deepEqual(leaf.dependents, ["src/only.ts"]);
   });
 
-  it("skips non-TypeScript changed files", () => {
+  it("skips non-analyzable changed files", () => {
     const graph = new Map<string, readonly string[]>();
 
     const findings = analyzeBlastRadius({
-      changedFiles: ["docs/guide.md", "package.json"],
+      changedFiles: ["docs/guide.md", "package.json", "styles/main.css"],
       importGraph: graph,
     });
 
     assert.deepEqual(findings, []);
+  });
+
+  it("returns findings for changed JavaScript and JSX files", () => {
+    const graph = new Map([
+      ["src/util.js", ["src/a.js", "src/b.jsx"]],
+      ["src/widget.jsx", ["src/app.jsx"]],
+    ]);
+
+    const findings = analyzeBlastRadius({
+      changedFiles: ["src/util.js", "src/widget.jsx", "README.md"],
+      importGraph: graph,
+    });
+
+    assert.equal(findings.length, 2);
+
+    const util = findings.find((finding) => finding.changedFile === "src/util.js");
+    assert.ok(util);
+    assert.equal(util.dependentCount, 2);
+    assert.equal(util.characterization, "isolated");
+    assert.deepEqual(util.dependents, ["src/a.js", "src/b.jsx"]);
+
+    const widget = findings.find(
+      (finding) => finding.changedFile === "src/widget.jsx"
+    );
+    assert.ok(widget);
+    assert.equal(widget.dependentCount, 1);
+    assert.equal(widget.characterization, "isolated");
+    assert.deepEqual(widget.dependents, ["src/app.jsx"]);
   });
 });
 
@@ -358,5 +386,67 @@ describe("analyzeBlastRadius path alias integration", () => {
       "src/alias-b.ts",
       "src/alias-c.ts",
     ]);
+  });
+});
+
+describe("analyzeBlastRadius JavaScript integration", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-blast-radius-js-")
+    );
+
+    writeRepoFile(
+      repoPath,
+      "src/util.js",
+      "export const util = 1;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/a.js",
+      "import { util } from './util.js';\nexport const a = util;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/b.jsx",
+      "import { util } from './util.js';\nexport const b = util;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/isolated.mjs",
+      "export const isolated = true;\n"
+    );
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("produces findings for changed JavaScript files from a real import graph", () => {
+    const graph = createImportGraph(repoPath);
+
+    const findings = analyzeBlastRadius({
+      changedFiles: ["src/util.js", "src/isolated.mjs", "package.json"],
+      importGraph: graph,
+    });
+
+    assert.equal(findings.length, 2);
+
+    const utilFinding = findings.find(
+      (finding) => finding.changedFile === "src/util.js"
+    );
+    assert.ok(utilFinding);
+    assert.equal(utilFinding.dependentCount, 2);
+    assert.equal(utilFinding.characterization, "isolated");
+    assert.deepEqual(utilFinding.dependents, ["src/a.js", "src/b.jsx"]);
+
+    const isolatedFinding = findings.find(
+      (finding) => finding.changedFile === "src/isolated.mjs"
+    );
+    assert.ok(isolatedFinding);
+    assert.equal(isolatedFinding.dependentCount, 0);
+    assert.equal(isolatedFinding.characterization, "isolated");
+    assert.deepEqual(isolatedFinding.dependents, []);
   });
 });
