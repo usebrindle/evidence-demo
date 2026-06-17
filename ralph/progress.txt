@@ -2,11 +2,13 @@
 Started: Wed, Jun 17, 2026  3:02:28 PM
 
 ## Codebase Patterns
-- `evidence-demo/` is the TypeScript package; run `npm run typecheck` and `npm run build` from that directory
+- `evidence-demo/` is the TypeScript package; run `npm run typecheck`, `npm run test`, and `npm run build` from that directory
 - Use `.js` extensions in TypeScript import paths (`moduleResolution: NodeNext`)
 - Pure analyzers live in `src/analyzers/`; impure git/file I/O lives in `src/inputs/`; report assembly in `src/report/`
 - CLI entry point is `src/cli.ts` → `dist/cli.js` via `bin` in package.json
 - History window constant `HISTORY_WINDOW_MONTHS = 6` lives in `gitHistorySource.ts`
+- Tests live in `evidence-demo/test/`; compile with `tsconfig.test.json` to `dist-test/`; run via `node --test dist-test/test/**/*.test.js`
+- `resolveChangedFiles` in `changedFiles.ts` uses local git only: `base...head` ranges, branch names (vs default branch), or PR numbers (via locally fetched `refs/pull/N/head`)
 
 ---
 ## Wed, Jun 17, 2026 - US-001
@@ -20,4 +22,16 @@ Started: Wed, Jun 17, 2026  3:02:28 PM
   - Use `fileURLToPath(import.meta.url)` for reliable ESM main-module detection on Windows
   - `npm run typecheck` (`tsc --noEmit`) is the quality gate for this project (no test runner yet)
   - Report modules can be implemented incrementally while input/analyzer stubs throw "not yet implemented"
+---
+## Wed, Jun 17, 2026 - US-002
+- Implemented `resolveChangedFiles` in `changedFiles.ts` using local git commands only
+- Supports `base...head` commit ranges, branch names (diff vs default branch via merge-base), and PR numbers (via locally fetched `refs/pull/N/head`)
+- Returns changed file paths and head-commit author name/email
+- Added Node built-in test runner with `tsconfig.test.json` and integration tests against a real temp git repo
+- Files changed: `evidence-demo/src/inputs/changedFiles.ts`, `evidence-demo/test/changedFiles.test.ts`, `evidence-demo/tsconfig.test.json`, `evidence-demo/package.json`, `evidence-demo/.gitignore`, `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Use `git diff --name-only base...head` (three-dot) for PR-style changed-file lists
+  - Default branch resolution tries `refs/remotes/origin/HEAD`, then `origin/main`, `origin/master`, `main`, `master`
+  - PR numbers require pull refs to exist locally; no network/gh CLI calls
+  - Test harness: compile `test/` to `dist-test/` separately so production `dist/` stays clean
 ---
