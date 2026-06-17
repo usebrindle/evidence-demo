@@ -28,7 +28,7 @@ evidence-demo/
     cli.ts                  # arg parsing, orchestration, the throwaway wrapper
     inputs/
       gitHistorySource.ts   # impure: reads git log from the local clone
-      importGraphSource.ts   # impure: parses TS imports from the local clone
+      importGraphSource.ts   # impure: walks JS/TS sources and parses static imports from the local clone
       changedFiles.ts        # impure: resolves the PR or range to changed files + author
     report/
       buildEvidenceReport.ts # pure: findings -> structured report
@@ -47,7 +47,7 @@ Slice 3 ... iterate the report formatting against real PRs until it reads the wa
 
 ## Out of scope for the demo
 
-A score, a recommendation, the other three evidence items, multi-language support, any persistence, any hosting, any robustness handling. The CLI is the experiment's rig and is expected to be discarded or heavily evolved once the analyzers lift into the core.
+A score, a recommendation, the other three evidence items, multi-language blast radius (Python, Go, and other non-JS/TS languages), any persistence, any hosting, any robustness handling. Changed files outside JS/TS source extensions appear under "not analyzed for blast radius" in the report. The CLI is the experiment's rig and is expected to be discarded or heavily evolved once the analyzers lift into the core.
 
 ## How it gets used in the experiment
 

@@ -1,16 +1,17 @@
 {
-  "project": "Brindle Evidence Demo",
-  "branchName": "ralph/evidence-demo",
-  "description": "Evidence Demo CLI — local command-line tool that analyzes a PR against a cloned repo and prints a human-readable evidence report covering author-module familiarity and reverse-dependency blast radius. No score, no recommendation; evidence only.",
+  "project": "evidence-demo",
+  "branchName": "ralph/javascript-blast-radius",
+  "description": "JavaScript Blast-Radius Extension — extend blast-radius analysis from TypeScript-only to JavaScript and TypeScript source files (.js, .jsx, .mjs, .cjs, .ts, .tsx, .mts, .cts), update design docs and user-facing copy, preserve pure-analyzer architecture",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Project scaffolding",
-      "description": "As a developer, I need a TypeScript project structure so analyzers, inputs, and CLI can be built incrementally.",
+      "title": "Update design docs for JS/TS blast radius",
+      "description": "As a developer or future agent, I want the LLD set to describe JavaScript-and-TypeScript blast-radius scope so implementation and docs stay aligned.",
       "acceptanceCriteria": [
-        "evidence-demo/ package with TypeScript configured",
-        "Directory layout matches design: src/cli.ts, src/inputs/, src/report/, analyzer modules",
-        "package.json with a runnable CLI entry point",
+        "docs/design/README.md scope section describes blast radius as JS/TS (not TypeScript-only); multi-language non-goal still excludes Python, Go, etc.",
+        "docs/design/0002-blast-radius-analyzer.md updated: purpose, how it analyzes, slices, out-of-scope, and dependencies refer to JS/TS source files",
+        "docs/design/0003-evidence-report-and-cli.md updated: importGraphSource description and out-of-scope wording reflect JS/TS coverage",
+        "No contradictory TypeScript-only statements remain in the design set unless explicitly marked as historical",
         "Typecheck passes"
       ],
       "priority": 1,
@@ -19,222 +20,85 @@
     },
     {
       "id": "US-002",
-      "title": "Resolve PR or commit range to changed files and author",
-      "description": "As a user, I want to point the CLI at a local repo and a PR or commit range so the tool knows what change to analyze.",
+      "title": "Discover and parse JavaScript source files in the import graph",
+      "description": "As a developer, I need the import graph to include .js, .jsx, .mjs, and .cjs files so reverse-dependency counts reflect real JavaScript modules.",
       "acceptanceCriteria": [
-        "changedFiles.ts accepts a local repo path and a PR reference (e.g. PR number, branch name) or base...head commit range",
-        "Returns the list of changed file paths for that change",
-        "Returns the PR author identity (name/email or equivalent from git)",
-        "Works against a real cloned repository",
+        "importGraphSource.ts walks repo for all in-scope JS/TS extensions (.js, .jsx, .mjs, .cjs, .ts, .tsx, .mts, .cts), not only .ts/.tsx",
+        "extractImportSpecifiers uses correct ts.ScriptKind per file (JS, JSX, TS, TSX as appropriate)",
+        "Relative module resolution finds .js/.jsx/.mjs/.cjs targets and index.* variants under those extensions",
+        "Aliased module resolution accepts resolved paths for all in-scope JS/TS extensions (remove .tsx?$-only filter on resolved paths)",
+        "Existing TypeScript import-graph tests still pass",
+        "New unit tests cover at least: .js importing .js, .jsx importing .jsx, and a mixed .ts to .js import chain",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Git history source (impure edge)",
-      "description": "As a developer, I need a git-backed history source at the CLI edge so the familiarity analyzer stays pure and testable.",
+      "title": "Extend blast-radius analyzer to JS/TS changed files",
+      "description": "As a senior engineer reading the report, I want blast-radius findings for changed JavaScript files, not only .ts/.tsx.",
       "acceptanceCriteria": [
-        "gitHistorySource.ts reads git log from a local clone",
-        "Exposes a query interface the familiarity analyzer consumes (author commits to a path over a time window, last-touch date, total area churn)",
-        "History window hardcoded to 6 months (not CLI-configurable in v1)",
+        "blastRadius.ts treats all in-scope JS/TS extensions as analyzable (rename TypeScript-specific helper to neutral naming, e.g. isAnalyzableSourceFile)",
+        "analyzeBlastRadius returns findings for changed .js/.jsx/.mjs/.cjs files when present in the import graph",
+        "Changed files outside in-scope extensions are still skipped without error",
+        "Characterization thresholds unchanged: isolated 0-2, moderate 3-10, broad 11+",
+        "Tests updated: skips non-TypeScript becomes skips non-analyzable with cases for .md, .json, etc.",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Familiarity analyzer — single-file commit count (Slice 1)",
-      "description": "As a developer, I need to count an author's commits to a single touched file so the git-history-to-finding path is proven end to end.",
+      "title": "Update report assembly and rendering copy",
+      "description": "As a user, I want report wording to accurately describe JS/TS blast-radius coverage and list only truly unanalyzed files under not analyzed.",
       "acceptanceCriteria": [
-        "Pure function: inputs are author identity, touched path, and a history source; no git shell-out inside the analyzer",
-        "Returns raw commit count for one file over the 6-month history window",
-        "Verified against a real repo's git log",
+        "buildEvidenceReport.ts classifies in-scope JS/TS files as blast-radius analyzable; only non-source files appear in notAnalyzedForBlastRadius",
+        "Limitations text updated from TypeScript static imports only to JavaScript/TypeScript static imports only; CommonJS require() not analyzed",
+        "renderReport.ts section headers and empty-state messages use JS/TS wording, not TypeScript-only",
+        "Tests in buildEvidenceReport.test.ts, renderReport.test.ts, and cli.test.ts updated for new copy and behavior",
+        "A changed .js file with importers no longer appears under not analyzed for blast radius",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 4,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Familiarity analyzer — directory aggregation and recency (Slice 2)",
-      "description": "As a senior engineer reading the report, I want directory-level familiarity and recency so a touched area produces a fuller picture than a single file count.",
+      "title": "Update project README and validation notes",
+      "description": "As a new contributor, I want top-level docs to describe the broader blast-radius scope.",
       "acceptanceCriteria": [
-        "Aggregates commit counts at the directory level for each touched area",
-        "Includes the date of the author's most recent commit to each area",
-        "Returns structured findings per touched area with supporting counts",
-        "Typecheck passes",
-        "Tests pass"
+        "Root README.md blast-radius bullet describes JS/TS static import analysis",
+        "evidence-demo/VALIDATION.md limitations section updated if it references TypeScript-only blast radius",
+        "Any non-TypeScript limitation bullets in README narrowed to non-JS/TS source files where appropriate",
+        "Typecheck passes"
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Familiarity analyzer — normalization and characterization (Slice 3)",
-      "description": "As a senior engineer, I want familiarity characterized as high/moderate/none with the numbers behind it so I can judge the label myself.",
+      "title": "End-to-end verification with a JavaScript fixture",
+      "description": "As the team validating the experiment, I want an integration test proving the full CLI loop works when the changed file is JavaScript.",
       "acceptanceCriteria": [
-        "Computes author's share of total activity in each area (normalized by area churn)",
-        "Produces per-area characterization: high, moderate, or none, with recency gating (stale history cannot yield high regardless of commit count)",
-        "High: last touch within 60 days AND (>=3 author commits OR >=25% share of area churn)",
-        "Moderate: last touch within 120 days with >=1 commit but not qualifying for high, OR last touch 121-180 days ago with >=2 commits",
-        "None: 0 commits in window, OR last touch >120 days ago with only 1 commit, OR last touch >180 days ago",
-        "Retains all supporting numbers in the finding (author commits, total area commits, recency, share)",
+        "CLI integration test or extended fixture repo includes a PR-like change to a .js file imported by other .js/.jsx modules",
+        "Report output shows blast-radius finding for the changed .js file with correct dependent count",
+        "Report does not list that .js file under not analyzed for blast radius",
+        "npm test passes in evidence-demo/",
         "Typecheck passes",
         "Tests pass"
       ],
       "priority": 6,
-      "passes": true,
+      "passes": false,
       "notes": ""
-    },
-    {
-      "id": "US-007",
-      "title": "Import graph source (impure edge)",
-      "description": "As a developer, I need a parsed import graph at the CLI edge so the blast-radius analyzer stays pure and testable.",
-      "acceptanceCriteria": [
-        "importGraphSource.ts parses TypeScript sources in a local clone",
-        "Builds a map from each module to the modules that import it (reverse-dependency view)",
-        "Handles relative import specifiers in the common case",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-008",
-      "title": "Blast-radius analyzer — single-file dependent count (Slice 1)",
-      "description": "As a developer, I need to count direct importers of one changed TypeScript file so the import-graph-to-finding path is proven end to end.",
-      "acceptanceCriteria": [
-        "Pure function: inputs are changed files and an import graph; no file I/O inside the analyzer",
-        "For one changed file, returns count of direct importers and their paths",
-        "Verified against a real TypeScript repo",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 8,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-009",
-      "title": "Blast-radius analyzer — characterization and dependents (Slice 2)",
-      "description": "As a senior engineer, I want each changed file characterized as isolated/moderate/broad with named dependents so the finding is convincing.",
-      "acceptanceCriteria": [
-        "Characterizes each changed file as isolated (0-2 importers), moderate (3-10), or broad (11+) based on direct dependent count",
-        "Includes a sample of dependent module paths in the finding",
-        "Returns structured blast-radius finding per changed TypeScript file",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 9,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-010",
-      "title": "Blast-radius analyzer — path-aliased imports (Slice 3)",
-      "description": "As a developer, I need tsconfig path aliases resolved so real repos are not undercounted.",
-      "acceptanceCriteria": [
-        "Resolves path-aliased imports (tsconfig paths) in addition to relative imports",
-        "Dependent counts reflect alias-resolved imports in a real repo that uses path aliases",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 10,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-011",
-      "title": "Evidence report assembly (pure)",
-      "description": "As a senior engineer, I want findings assembled into a structured report that leads with evidence, not a verdict.",
-      "acceptanceCriteria": [
-        "buildEvidenceReport.ts is a pure function: analyzer findings -> structured report object",
-        "Report includes per-area familiarity with supporting numbers (not just labels)",
-        "Report includes per-file blast radius with dependent count and named dependents (not just labels)",
-        "Report states explicit limitations (what is not computed)",
-        "No risk score or merge recommendation produced",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 11,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-012",
-      "title": "Report rendering (pure)",
-      "description": "As a user, I want the structured report rendered as readable text printed to stdout.",
-      "acceptanceCriteria": [
-        "renderReport.ts is a pure function: structured report -> formatted text",
-        "Output is human-readable and suitable for terminal display",
-        "Familiarity section shows numbers (e.g. author has 2 commits here in 6 months, last one 4 months ago, versus 180 commits in this area total by others)",
-        "Blast-radius section shows counts and sample dependents (e.g. imported by 34 modules, including ...)",
-        "Limitations section is present and honest",
-        "Non-TypeScript changed files appear in a 'not analyzed for blast radius' section with a brief TS-only note; familiarity section still covers them",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 12,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-013",
-      "title": "CLI end-to-end — familiarity only (Slice 1)",
-      "description": "As a user, I want to run the CLI against a local repo and PR and see a familiarity report so the full loop is proven with one analyzer.",
-      "acceptanceCriteria": [
-        "CLI accepts repo path and PR/range arguments",
-        "Orchestrates: resolve change -> run familiarity analyzer -> build report -> render -> print",
-        "Prints a minimal familiarity report to stdout",
-        "Nothing transmitted or stored; reads only the local clone",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-014",
-      "title": "CLI end-to-end — both analyzers (Slice 2)",
-      "description": "As a user, I want the full evidence report with both familiarity and blast-radius sections.",
-      "acceptanceCriteria": [
-        "CLI runs both analyzers and includes both sections in the report",
-        "Blast-radius section only covers changed TypeScript files; non-TS files appear in not-analyzed section",
-        "End-to-end run against a real TypeScript repo with a real PR produces a complete report",
-        "Typecheck passes",
-        "Tests pass"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": ""
-    },
-    {
-      "id": "US-015",
-      "title": "Report tuning against real PRs (Slice 3)",
-      "description": "As the team validating the experiment, I want to iterate report formatting against real PRs until a senior engineer accepts the explanation.",
-      "acceptanceCriteria": [
-        "Tool run against several real PRs from known TypeScript repos",
-        "Report formatting adjusted based on critical review of output",
-        "Output reviewed against the pre-committed acceptance criterion (senior engineer says explanation is trustworthy on real PRs)",
-        "Documented result: validated or refuted, with examples",
-        "Typecheck passes"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": "Validated against real PRs from zod, type-fest, citty, and brindle/v2. See evidence-demo/VALIDATION.md."
     }
   ]
 }
