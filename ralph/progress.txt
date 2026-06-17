@@ -16,7 +16,7 @@
 - Pure blast-radius analyzer in `src/analyzers/blastRadius.ts` injects `ImportGraph`; `countDirectImportersForFile` is Slice 1 (single-file dependent count + paths); `analyzeBlastRadius` is Slice 2 (US-009): `characterizeBlastRadius` labels isolated (0-2), moderate (3-10), broad (11+); `sampleDependents` caps named dependents at `DEPENDENT_SAMPLE_SIZE` (5) while `dependentCount` keeps the full total; skips non-TS changed files
 - Pure report assembly in `src/report/buildEvidenceReport.ts`: `buildEvidenceReport({ author, changedFiles, familiarity, blastRadius })` → `EvidenceReport` with full finding objects, `notAnalyzedForBlastRadius` for non-TS changed files, and a fixed `limitations` list (no risk score or merge recommendation)
 - Pure report rendering in `src/report/renderReport.ts`: `renderReport(report, { asOf? })` → terminal text with familiarity numbers (author commits, recency, others' commits, share), blast-radius counts with sampled dependents, non-TS `notAnalyzedForBlastRadius` section with TS-only note, and limitations; pass `asOf` for deterministic relative dates in tests
-- CLI orchestration in `src/cli.ts`: `runEvidenceDemo(repoPath, prOrRange, { asOf? })` wires resolve change → `analyzeFamiliarity` → `buildEvidenceReport` (empty `blastRadius` for Slice 1) → `renderReport`; `main()` prints to stdout; test via `runEvidenceDemo` with `asOf` for deterministic output
+- CLI orchestration in `src/cli.ts`: `runEvidenceDemo(repoPath, prOrRange, { asOf? })` wires resolve change → `analyzeFamiliarity` + `createImportGraph`/`analyzeBlastRadius` → `buildEvidenceReport` → `renderReport`; `main()` prints to stdout; test via `runEvidenceDemo` with `asOf` for deterministic output
 
 ---
 ## Wed, Jun 17, 2026 - US-001
@@ -172,5 +172,15 @@
 - **Learnings for future iterations:**
   - Export `runEvidenceDemo` for testable orchestration without spawning subprocesses
   - US-014 extends the same flow with import graph + `analyzeBlastRadius` before `buildEvidenceReport`
+  - Manual browser verification not needed (no UI changes)
+---
+## Wed, Jun 17, 2026 - US-014
+- Extended CLI end-to-end to run both analyzers: resolve change → familiarity + blast-radius → build report → render
+- `runEvidenceDemo` now calls `createImportGraph` and `analyzeBlastRadius`; non-TS changed files appear via `buildEvidenceReport` not-analyzed section
+- Added 4 CLI integration tests: complete report (commit range + branch), non-TS not-analyzed section, and standalone e2e TypeScript repo with moderate blast radius
+- Files changed: `evidence-demo/src/cli.ts`, `evidence-demo/test/cli.test.ts`, `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - US-013 passed empty `blastRadius: []`; US-014 replaces that with real import-graph analysis
+  - Test repos need importer files on the feature branch HEAD for blast-radius findings; changed-file count includes all PR files, not just the primary target
   - Manual browser verification not needed (no UI changes)
 ---

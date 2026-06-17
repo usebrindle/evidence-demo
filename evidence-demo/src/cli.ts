@@ -3,15 +3,17 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { analyzeBlastRadius } from "./analyzers/blastRadius.js";
 import { analyzeFamiliarity } from "./analyzers/familiarity.js";
 import { resolveChangedFiles } from "./inputs/changedFiles.js";
 import { createGitHistorySource } from "./inputs/gitHistorySource.js";
+import { createImportGraph } from "./inputs/importGraphSource.js";
 import { buildEvidenceReport } from "./report/buildEvidenceReport.js";
 import { renderReport } from "./report/renderReport.js";
 
 /**
  * Evidence Demo CLI — arg parsing and orchestration (throwaway wrapper).
- * Slice 1: resolve change → familiarity analyzer → build report → render → print.
+ * resolve change → familiarity + blast-radius analyzers → build report → render → print.
  */
 
 export interface RunEvidenceDemoOptions {
@@ -20,7 +22,7 @@ export interface RunEvidenceDemoOptions {
 }
 
 /**
- * Orchestrate a familiarity-only evidence report from a local clone.
+ * Orchestrate a full evidence report from a local clone.
  * Reads only the local repository; nothing is transmitted or stored.
  */
 export function runEvidenceDemo(
@@ -46,11 +48,17 @@ export function runEvidenceDemo(
     asOf
   );
 
+  const importGraph = createImportGraph(resolvedRepo);
+  const blastRadius = analyzeBlastRadius({
+    changedFiles,
+    importGraph,
+  });
+
   const report = buildEvidenceReport({
     author,
     changedFiles,
     familiarity,
-    blastRadius: [],
+    blastRadius,
   });
 
   return renderReport(report, { asOf });
