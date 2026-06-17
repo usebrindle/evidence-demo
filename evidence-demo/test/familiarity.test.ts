@@ -9,7 +9,7 @@ import {
   analyzeFamiliarity,
   characterizeFamiliarity,
   countAuthorCommitsToFile,
-  shareOfAreaChurn,
+  shareOfFileChurn,
 } from "../src/analyzers/familiarity.js";
 import { createGitHistorySource } from "../src/inputs/gitHistorySource.js";
 
@@ -257,7 +257,7 @@ describe("analyzeFamiliarity", () => {
     rmSync(repoPath, { recursive: true, force: true });
   });
 
-  it("aggregates author commit counts at the directory level", () => {
+  it("returns author commit counts at the file level", () => {
     const historySource = createGitHistorySource(repoPath);
     const findings = analyzeFamiliarity(
       {
@@ -269,12 +269,12 @@ describe("analyzeFamiliarity", () => {
     );
 
     assert.equal(findings.length, 1);
-    assert.equal(findings[0]?.area, "src/");
-    assert.equal(findings[0]?.authorCommitCount, 3);
-    assert.equal(findings[0]?.totalAreaCommitCount, 5);
+    assert.equal(findings[0]?.touchedFile, "src/foo.ts");
+    assert.equal(findings[0]?.authorCommitCount, 2);
+    assert.equal(findings[0]?.totalFileCommitCount, 4);
   });
 
-  it("includes the author's most recent commit date to each area", () => {
+  it("includes the author's most recent commit date to each file", () => {
     const historySource = createGitHistorySource(repoPath);
     const findings = analyzeFamiliarity(
       {
@@ -285,11 +285,14 @@ describe("analyzeFamiliarity", () => {
       REFERENCE_DATE
     );
 
-    assert.equal(findings.length, 1);
-    assert.deepEqual(findings[0]?.lastTouchDate, daysAgo(5));
+    assert.equal(findings.length, 2);
+    const fooFinding = findings.find((finding) => finding.touchedFile === "src/foo.ts");
+    const barFinding = findings.find((finding) => finding.touchedFile === "src/bar.ts");
+    assert.deepEqual(fooFinding?.lastTouchDate, daysAgo(10));
+    assert.deepEqual(barFinding?.lastTouchDate, daysAgo(5));
   });
 
-  it("returns one finding per unique touched area", () => {
+  it("returns one finding per unique changed file", () => {
     const historySource = createGitHistorySource(repoPath);
     const findings = analyzeFamiliarity(
       {
@@ -300,12 +303,12 @@ describe("analyzeFamiliarity", () => {
       REFERENCE_DATE
     );
 
-    assert.equal(findings.length, 2);
-    const areas = findings.map((finding) => finding.area).sort();
-    assert.deepEqual(areas, ["lib/", "src/"]);
+    assert.equal(findings.length, 3);
+    const files = findings.map((finding) => finding.touchedFile).sort();
+    assert.deepEqual(files, ["lib/util.ts", "src/bar.ts", "src/foo.ts"]);
   });
 
-  it("returns structured findings with supporting counts per area", () => {
+  it("returns structured findings with supporting counts per file", () => {
     const historySource = createGitHistorySource(repoPath);
     const findings = analyzeFamiliarity(
       {
@@ -317,20 +320,20 @@ describe("analyzeFamiliarity", () => {
     );
 
     assert.equal(findings.length, 1);
-    assert.equal(findings[0]?.area, "lib/");
+    assert.equal(findings[0]?.touchedFile, "lib/util.ts");
     assert.equal(findings[0]?.authorCommitCount, 1);
-    assert.equal(findings[0]?.totalAreaCommitCount, 2);
+    assert.equal(findings[0]?.totalFileCommitCount, 2);
     assert.deepEqual(findings[0]?.lastTouchDate, daysAgo(20));
   });
 });
 
-describe("shareOfAreaChurn", () => {
-  it("returns author commits divided by total area commits", () => {
-    assert.equal(shareOfAreaChurn(3, 12), 0.25);
+describe("shareOfFileChurn", () => {
+  it("returns author commits divided by total file commits", () => {
+    assert.equal(shareOfFileChurn(3, 12), 0.25);
   });
 
-  it("returns zero when the area has no churn", () => {
-    assert.equal(shareOfAreaChurn(0, 0), 0);
+  it("returns zero when the file has no churn", () => {
+    assert.equal(shareOfFileChurn(0, 0), 0);
   });
 });
 
@@ -338,19 +341,19 @@ describe("characterizeFamiliarity", () => {
   it("returns high when recent with enough commits", () => {
     const result = characterizeFamiliarity(3, 10, daysAgo(30), REFERENCE_DATE);
     assert.equal(result.characterization, "high");
-    assert.equal(result.shareOfAreaChurn, 0.3);
+    assert.equal(result.shareOfFileChurn, 0.3);
   });
 
   it("returns high when recent with high share but fewer than 3 commits", () => {
     const result = characterizeFamiliarity(2, 6, daysAgo(45), REFERENCE_DATE);
     assert.equal(result.characterization, "high");
-    assert.equal(result.shareOfAreaChurn, 1 / 3);
+    assert.equal(result.shareOfFileChurn, 1 / 3);
   });
 
   it("returns moderate when recent with one commit below high thresholds", () => {
     const result = characterizeFamiliarity(1, 20, daysAgo(90), REFERENCE_DATE);
     assert.equal(result.characterization, "moderate");
-    assert.equal(result.shareOfAreaChurn, 0.05);
+    assert.equal(result.shareOfFileChurn, 0.05);
   });
 
   it("returns moderate for two commits between 121 and 180 days ago", () => {
@@ -361,7 +364,7 @@ describe("characterizeFamiliarity", () => {
   it("returns none for zero commits", () => {
     const result = characterizeFamiliarity(0, 5, null, REFERENCE_DATE);
     assert.equal(result.characterization, "none");
-    assert.equal(result.shareOfAreaChurn, 0);
+    assert.equal(result.shareOfFileChurn, 0);
   });
 
   it("returns none for a single stale commit beyond 120 days", () => {
@@ -460,7 +463,7 @@ describe("analyzeFamiliarity characterization", () => {
     rmSync(repoPath, { recursive: true, force: true });
   });
 
-  it("computes share and high characterization for active areas", () => {
+  it("computes share and high characterization for active files", () => {
     const historySource = createGitHistorySource(repoPath);
     const findings = analyzeFamiliarity(
       {
@@ -472,9 +475,9 @@ describe("analyzeFamiliarity characterization", () => {
     );
 
     assert.equal(findings.length, 1);
-    assert.equal(findings[0]?.authorCommitCount, 3);
-    assert.equal(findings[0]?.totalAreaCommitCount, 5);
-    assert.equal(findings[0]?.shareOfAreaChurn, 0.6);
+    assert.equal(findings[0]?.authorCommitCount, 2);
+    assert.equal(findings[0]?.totalFileCommitCount, 4);
+    assert.equal(findings[0]?.shareOfFileChurn, 0.5);
     assert.equal(findings[0]?.characterization, "high");
   });
 
@@ -491,8 +494,8 @@ describe("analyzeFamiliarity characterization", () => {
 
     assert.equal(findings.length, 1);
     assert.equal(findings[0]?.authorCommitCount, 1);
-    assert.equal(findings[0]?.totalAreaCommitCount, 2);
-    assert.equal(findings[0]?.shareOfAreaChurn, 0.5);
+    assert.equal(findings[0]?.totalFileCommitCount, 2);
+    assert.equal(findings[0]?.shareOfFileChurn, 0.5);
     assert.equal(findings[0]?.characterization, "high");
     assert.deepEqual(findings[0]?.lastTouchDate, daysAgo(20));
   });
@@ -511,6 +514,6 @@ describe("analyzeFamiliarity characterization", () => {
     assert.equal(findings.length, 1);
     assert.equal(findings[0]?.authorCommitCount, 0);
     assert.equal(findings[0]?.characterization, "none");
-    assert.equal(findings[0]?.shareOfAreaChurn, 0);
+    assert.equal(findings[0]?.shareOfFileChurn, 0);
   });
 });

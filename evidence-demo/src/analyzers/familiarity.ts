@@ -8,11 +8,11 @@ import type { GitHistorySource } from "../inputs/gitHistorySource.js";
 import { historyWindowSince } from "../inputs/gitHistorySource.js";
 
 export interface FamiliarityFinding {
-  area: string;
+  touchedFile: string;
   authorCommitCount: number;
-  totalAreaCommitCount: number;
+  totalFileCommitCount: number;
   lastTouchDate: Date | null;
-  shareOfAreaChurn: number;
+  shareOfFileChurn: number;
   characterization: "high" | "moderate" | "none";
 }
 
@@ -42,15 +42,15 @@ export function countAuthorCommitsToFile(
 
 export type FamiliarityCharacterization = FamiliarityFinding["characterization"];
 
-/** Author's share of total commits in an area (0 when area has no churn). */
-export function shareOfAreaChurn(
+/** Author's share of total commits to a file (0 when the file has no churn). */
+export function shareOfFileChurn(
   authorCommitCount: number,
-  totalAreaCommitCount: number
+  totalFileCommitCount: number
 ): number {
-  if (totalAreaCommitCount === 0) {
+  if (totalFileCommitCount === 0) {
     return 0;
   }
-  return authorCommitCount / totalAreaCommitCount;
+  return authorCommitCount / totalFileCommitCount;
 }
 
 function daysSince(date: Date, asOf: Date): number {
@@ -64,24 +64,24 @@ function daysSince(date: Date, asOf: Date): number {
  */
 export function characterizeFamiliarity(
   authorCommitCount: number,
-  totalAreaCommitCount: number,
+  totalFileCommitCount: number,
   lastTouchDate: Date | null,
   asOf: Date = new Date()
-): Pick<FamiliarityFinding, "shareOfAreaChurn" | "characterization"> {
-  const share = shareOfAreaChurn(authorCommitCount, totalAreaCommitCount);
+): Pick<FamiliarityFinding, "shareOfFileChurn" | "characterization"> {
+  const share = shareOfFileChurn(authorCommitCount, totalFileCommitCount);
 
   if (authorCommitCount === 0 || lastTouchDate === null) {
-    return { shareOfAreaChurn: share, characterization: "none" };
+    return { shareOfFileChurn: share, characterization: "none" };
   }
 
   const recencyDays = daysSince(lastTouchDate, asOf);
 
   if (recencyDays > 180) {
-    return { shareOfAreaChurn: share, characterization: "none" };
+    return { shareOfFileChurn: share, characterization: "none" };
   }
 
   if (recencyDays > 120 && authorCommitCount === 1) {
-    return { shareOfAreaChurn: share, characterization: "none" };
+    return { shareOfFileChurn: share, characterization: "none" };
   }
 
   const qualifiesForHigh =
@@ -89,7 +89,7 @@ export function characterizeFamiliarity(
     (authorCommitCount >= 3 || share >= 0.25);
 
   if (qualifiesForHigh) {
-    return { shareOfAreaChurn: share, characterization: "high" };
+    return { shareOfFileChurn: share, characterization: "high" };
   }
 
   const qualifiesForModerate =
@@ -97,24 +97,14 @@ export function characterizeFamiliarity(
     (recencyDays > 120 && recencyDays <= 180 && authorCommitCount >= 2);
 
   if (qualifiesForModerate) {
-    return { shareOfAreaChurn: share, characterization: "moderate" };
+    return { shareOfFileChurn: share, characterization: "moderate" };
   }
 
-  return { shareOfAreaChurn: share, characterization: "none" };
-}
-
-/** Map a touched file path to its containing directory area for aggregation. */
-export function touchedAreaForPath(filePath: string): string {
-  const normalized = filePath.replace(/\\/g, "/");
-  const lastSlash = normalized.lastIndexOf("/");
-  if (lastSlash === -1) {
-    return ".";
-  }
-  return normalized.slice(0, lastSlash + 1);
+  return { shareOfFileChurn: share, characterization: "none" };
 }
 
 /**
- * Slice 2: directory-level commit counts and recency per touched area.
+ * Slice 2: file-level commit counts and recency per changed file.
  * Pure — no git shell-out; uses the injected history source.
  */
 export function analyzeFamiliarity(
@@ -122,18 +112,16 @@ export function analyzeFamiliarity(
   asOf: Date = new Date()
 ): FamiliarityFinding[] {
   const since = historyWindowSince(asOf);
-  const areas = [
-    ...new Set(input.touchedPaths.map((touchedPath) => touchedAreaForPath(touchedPath))),
-  ];
+  const touchedFiles = [...new Set(input.touchedPaths)];
 
-  return areas.map((area) => {
+  return touchedFiles.map((touchedFile) => {
     const stats = input.historySource.query({
       authorEmail: input.author.email,
-      path: area,
+      path: touchedFile,
       since,
     });
 
-    const { shareOfAreaChurn, characterization } = characterizeFamiliarity(
+    const { shareOfFileChurn, characterization } = characterizeFamiliarity(
       stats.authorCommitCount,
       stats.totalCommitCount,
       stats.lastTouchDate,
@@ -141,11 +129,11 @@ export function analyzeFamiliarity(
     );
 
     return {
-      area,
+      touchedFile,
       authorCommitCount: stats.authorCommitCount,
-      totalAreaCommitCount: stats.totalCommitCount,
+      totalFileCommitCount: stats.totalCommitCount,
       lastTouchDate: stats.lastTouchDate,
-      shareOfAreaChurn,
+      shareOfFileChurn,
       characterization,
     };
   });

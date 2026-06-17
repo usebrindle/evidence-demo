@@ -450,3 +450,102 @@ describe("analyzeBlastRadius JavaScript integration", () => {
     assert.deepEqual(isolatedFinding.dependents, []);
   });
 });
+
+describe("analyzeBlastRadius require() integration", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-blast-radius-require-")
+    );
+
+    writeRepoFile(
+      repoPath,
+      "src/util.js",
+      "module.exports = { util: 1 };\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/consumer-a.js",
+      "const { util } = require('./util');\nmodule.exports = { a: util };\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/consumer-b.js",
+      "const { util } = require('./util');\nmodule.exports = { b: util };\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/isolated.js",
+      "module.exports = { isolated: true };\n"
+    );
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("counts require-only dependents in blast-radius findings", () => {
+    const graph = createImportGraph(repoPath);
+
+    const findings = analyzeBlastRadius({
+      changedFiles: ["src/util.js", "src/isolated.js"],
+      importGraph: graph,
+    });
+
+    assert.equal(findings.length, 2);
+
+    const utilFinding = findings.find(
+      (finding) => finding.changedFile === "src/util.js"
+    );
+    assert.ok(utilFinding);
+    assert.equal(utilFinding.dependentCount, 2);
+    assert.equal(utilFinding.characterization, "isolated");
+    assert.deepEqual(utilFinding.dependents, [
+      "src/consumer-a.js",
+      "src/consumer-b.js",
+    ]);
+
+    const isolatedFinding = findings.find(
+      (finding) => finding.changedFile === "src/isolated.js"
+    );
+    assert.ok(isolatedFinding);
+    assert.equal(isolatedFinding.dependentCount, 0);
+    assert.equal(isolatedFinding.characterization, "isolated");
+    assert.deepEqual(isolatedFinding.dependents, []);
+  });
+
+  it("merges import and require dependents on the same changed file", () => {
+    const mixedRepo = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-blast-radius-require-mixed-")
+    );
+    try {
+      writeRepoFile(
+        mixedRepo,
+        "src/util.js",
+        "module.exports = { util: 1 };\n"
+      );
+      writeRepoFile(
+        mixedRepo,
+        "src/mixed-import.js",
+        "import { util } from './util.js';\nexport const imported = util;\n"
+      );
+      writeRepoFile(
+        mixedRepo,
+        "src/mixed-require.js",
+        "const { util } = require('./util');\nmodule.exports = { required: util };\n"
+      );
+
+      const graph = createImportGraph(mixedRepo);
+      const result = countDirectImportersForFile("src/util.js", graph);
+
+      assert.equal(result.dependentCount, 2);
+      assert.deepEqual(result.dependents, [
+        "src/mixed-import.js",
+        "src/mixed-require.js",
+      ]);
+    } finally {
+      rmSync(mixedRepo, { recursive: true, force: true });
+    }
+  });
+});

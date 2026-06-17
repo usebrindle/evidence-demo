@@ -11,19 +11,19 @@ const asOf = new Date("2026-06-17T12:00:00Z");
 
 const sampleFamiliarity: FamiliarityFinding[] = [
   {
-    area: "src/",
+    touchedFile: "src/util.ts",
     authorCommitCount: 2,
-    totalAreaCommitCount: 182,
+    totalFileCommitCount: 182,
     lastTouchDate: new Date("2026-02-17T12:00:00Z"),
-    shareOfAreaChurn: 2 / 182,
+    shareOfFileChurn: 2 / 182,
     characterization: "moderate",
   },
   {
-    area: "docs/",
+    touchedFile: "docs/guide.md",
     authorCommitCount: 0,
-    totalAreaCommitCount: 4,
+    totalFileCommitCount: 4,
     lastTouchDate: null,
-    shareOfAreaChurn: 0,
+    shareOfFileChurn: 0,
     characterization: "none",
   },
 ];
@@ -62,11 +62,11 @@ describe("renderReport", () => {
 
     assert.match(
       text,
-      /Author has 2 commits here in 6 months \(1\.1% of area churn\), last touch 4 months ago; 180 commits by others in this window \(182 total\)\./
+      /Author has 2 commits to this file in 6 months \(1\.1% of file churn\), last touch 4 months ago; 180 commits by others in this window \(182 total\)\./
     );
     assert.match(
       text,
-      /docs\/ — none[\s\S]*No author commits in this area in 6 months; 4 commits by others in this window\./
+      /docs\/guide\.md — none[\s\S]*No author commits to this file in 6 months; 4 commits by others in this window\./
     );
   });
 
@@ -82,11 +82,11 @@ describe("renderReport", () => {
 
     assert.match(
       text,
-      /src\/util\.ts — broad[\s\S]*Imported by 34 modules, including src\/a\.ts, src\/b\.ts, src\/c\.ts, src\/d\.ts, src\/e\.ts \(and 29 more\)\./
+      /src\/util\.ts — broad[\s\S]*Depended on by 34 modules, including src\/a\.ts, src\/b\.ts, src\/c\.ts, src\/d\.ts, src\/e\.ts \(and 29 more\)\./
     );
     assert.match(
       text,
-      /src\/isolated\.ts — isolated[\s\S]*Imported by no modules\./
+      /src\/isolated\.ts — isolated[\s\S]*Depended on by no modules\./
     );
   });
 
@@ -121,11 +121,11 @@ describe("renderReport", () => {
     assert.match(text, /Not Analyzed for Blast Radius/);
     assert.match(
       text,
-      /Blast-radius analysis covers JavaScript\/TypeScript static imports only; CommonJS require\(\) is not analyzed\./
+      /Blast-radius analysis covers JavaScript\/TypeScript source files only\./
     );
     assert.match(text, /README\.md/);
     assert.match(text, /package\.json/);
-    assert.match(text, /Familiarity[\s\S]*docs\/ — none/);
+    assert.match(text, /Familiarity[\s\S]*docs\/guide\.md — none/);
   });
 
   it("produces terminal-friendly output with section headers", () => {
@@ -145,25 +145,29 @@ describe("renderReport", () => {
     assert.match(text, /Changed files \(1\):/);
     assert.match(text, /  src\/util\.ts/);
     assert.match(text, /Familiarity\n-{11}/);
+    assert.match(
+      text,
+      /How much the author has worked on each changed file over the last 6 months\./
+    );
     assert.match(text, /Blast Radius\n-{12}/);
     assert.match(
       text,
-      /Direct static importers of each changed JavaScript or TypeScript source file\./
+      /Direct static import and require\(\) dependents of each changed JavaScript or TypeScript source file\./
     );
     assert.ok(text.endsWith(report.limitations.at(-1)!));
   });
 
-  it("labels repository-root areas clearly", () => {
+  it("labels repository-root files clearly", () => {
     const report = buildEvidenceReport({
       author,
       changedFiles: ["package.json"],
       familiarity: [
         {
-          area: ".",
+          touchedFile: "package.json",
           authorCommitCount: 0,
-          totalAreaCommitCount: 39,
+          totalFileCommitCount: 39,
           lastTouchDate: null,
-          shareOfAreaChurn: 0,
+          shareOfFileChurn: 0,
           characterization: "none",
         },
       ],
@@ -174,7 +178,7 @@ describe("renderReport", () => {
 
     assert.match(
       text,
-      /\(repository root\) — none[\s\S]*No author commits in this area in 6 months; 39 commits by others in this window\./
+      /package\.json — none[\s\S]*No author commits to this file in 6 months; 39 commits by others in this window\./
     );
   });
 
@@ -191,7 +195,7 @@ describe("renderReport", () => {
     const blastSection =
       text.split("Blast Radius")[1]?.split("Limitations")[0] ?? "";
 
-    assert.ok(familiaritySection.indexOf("docs/ — none") < familiaritySection.indexOf("src/ — moderate"));
+    assert.ok(familiaritySection.indexOf("docs/guide.md — none") < familiaritySection.indexOf("src/util.ts — moderate"));
     assert.ok(blastSection.indexOf("src/util.ts — broad") < blastSection.indexOf("src/isolated.ts — isolated"));
   });
 });

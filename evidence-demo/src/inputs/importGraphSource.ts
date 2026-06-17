@@ -1,6 +1,6 @@
 /**
- * Impure edge: parses JS/TS imports from a local clone.
- * Builds reverse-dependency view: module → modules that import it.
+ * Impure edge: parses JS/TS static imports and static-literal require() from a local clone.
+ * Builds reverse-dependency view: module → modules that import or require it.
  */
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
@@ -242,6 +242,14 @@ function extractImportSpecifiers(
     } else if (
       ts.isCallExpression(node) &&
       node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length === 1 &&
+      ts.isStringLiteral(node.arguments[0])
+    ) {
+      specifiers.push(node.arguments[0].text);
+    } else if (
+      ts.isCallExpression(node) &&
+      ts.isIdentifier(node.expression) &&
+      node.expression.text === "require" &&
       node.arguments.length === 1 &&
       ts.isStringLiteral(node.arguments[0])
     ) {

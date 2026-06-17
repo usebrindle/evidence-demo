@@ -131,11 +131,11 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /Evidence Report/);
     assert.match(output, /Author: Alice Author <alice@example.com>/);
     assert.match(output, /Familiarity/);
-    assert.match(output, /src\/ — (high|moderate|none)/);
-    assert.match(output, /Author has 2 commits here in 6 months/);
+    assert.match(output, /src\/auth\.ts — (high|moderate|none)/);
+    assert.match(output, /Author has 2 commits to this file in 6 months/);
     assert.match(output, /Blast Radius/);
     assert.match(output, /src\/auth\.ts — isolated/);
-    assert.match(output, /Imported by 2 modules, including src\/login\.ts, src\/signup\.ts/);
+    assert.match(output, /Depended on by 2 modules, including src\/login\.ts, src\/signup\.ts/);
     assert.match(output, /Limitations/);
     assert.doesNotMatch(output, /no analyzable JS\/TS changed files to analyze/);
   });
@@ -146,10 +146,10 @@ describe("runEvidenceDemo", () => {
     });
 
     assert.match(output, /Author: Alice Author <alice@example.com>/);
-    assert.match(output, /src\/ —/);
+    assert.match(output, /src\/auth\.ts —/);
     assert.match(output, /Changed files \(3\):/);
     assert.match(output, /src\/auth\.ts — isolated/);
-    assert.match(output, /Imported by 2 modules/);
+    assert.match(output, /Depended on by 2 modules/);
   });
 
   it("lists non-analyzable changed files under not-analyzed for blast radius", () => {
@@ -170,7 +170,7 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /docs\/guide\.md/);
     assert.match(
       output,
-      /Blast-radius analysis covers JavaScript\/TypeScript static imports only; CommonJS require\(\) is not analyzed/
+      /Blast-radius analysis covers JavaScript\/TypeScript source files only/
     );
     assert.match(output, /src\/auth\.ts — isolated/);
   });
@@ -221,14 +221,165 @@ describe("runEvidenceDemo", () => {
 
       assert.match(output, /Author: Dev User <dev@example.com>/);
       assert.match(output, /Familiarity/);
-      assert.match(output, /src\/ —/);
+      assert.match(output, /src\/core\.js —/);
       assert.match(output, /Blast Radius/);
       assert.match(output, /src\/core\.js — moderate/);
-      assert.match(output, /Imported by 3 modules/);
+      assert.match(output, /Depended on by 3 modules/);
       assert.match(output, /Limitations/);
       assert.doesNotMatch(output, /Not Analyzed for Blast Radius/);
     } finally {
       rmSync(jsRepo, { recursive: true, force: true });
+    }
+  });
+
+  it("shows separate familiarity lines per changed file in the same directory", () => {
+    const famRepo = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-familiarity-e2e-")
+    );
+    try {
+      git(famRepo, ["init"]);
+      git(famRepo, ["config", "user.name", "Setup"]);
+      git(famRepo, ["config", "user.email", "setup@example.com"]);
+
+      writeRepoFile(famRepo, "src/foo.ts", "export const foo = 1;\n");
+      writeRepoFile(famRepo, "src/bar.ts", "export const bar = 1;\n");
+      commitAs(
+        famRepo,
+        { name: "Bob Builder", email: "bob@example.com" },
+        daysAgo(120),
+        "bob init both files"
+      );
+
+      writeRepoFile(famRepo, "src/foo.ts", "export const foo = 2;\n");
+      commitAs(
+        famRepo,
+        { name: "Alice Author", email: "alice@example.com" },
+        daysAgo(80),
+        "alice first foo"
+      );
+
+      writeRepoFile(famRepo, "src/foo.ts", "export const foo = 3;\n");
+      commitAs(
+        famRepo,
+        { name: "Alice Author", email: "alice@example.com" },
+        daysAgo(50),
+        "alice second foo"
+      );
+
+      writeRepoFile(famRepo, "src/bar.ts", "export const bar = 2;\n");
+      commitAs(
+        famRepo,
+        { name: "Bob Builder", email: "bob@example.com" },
+        daysAgo(40),
+        "bob updates bar"
+      );
+
+      writeRepoFile(famRepo, "src/bar.ts", "export const bar = 3;\n");
+      commitAs(
+        famRepo,
+        { name: "Bob Builder", email: "bob@example.com" },
+        daysAgo(35),
+        "bob updates bar again"
+      );
+
+      writeRepoFile(famRepo, "src/bar.ts", "export const bar = 4;\n");
+      commitAs(
+        famRepo,
+        { name: "Bob Builder", email: "bob@example.com" },
+        daysAgo(30),
+        "bob updates bar third time"
+      );
+
+      writeRepoFile(famRepo, "src/foo.ts", "export const foo = 4;\n");
+      commitAs(
+        famRepo,
+        { name: "Alice Author", email: "alice@example.com" },
+        daysAgo(20),
+        "alice third foo"
+      );
+      const base = git(famRepo, ["rev-parse", "HEAD"]);
+
+      writeRepoFile(famRepo, "src/foo.ts", "export const foo = 5;\n");
+      writeRepoFile(famRepo, "src/bar.ts", "export const bar = 3;\n");
+      commitAs(
+        famRepo,
+        { name: "Alice Author", email: "alice@example.com" },
+        daysAgo(5),
+        "alice changes foo and bar"
+      );
+      const head = git(famRepo, ["rev-parse", "HEAD"]);
+
+      const output = runEvidenceDemo(famRepo, `${base}...${head}`, {
+        asOf: REFERENCE_DATE,
+      });
+
+      assert.match(output, /Author: Alice Author <alice@example.com>/);
+      assert.match(output, /Changed files \(2\):/);
+      assert.match(output, /Familiarity/);
+      assert.match(output, /src\/foo\.ts — high/);
+      assert.match(output, /Author has 4 commits to this file in 6 months/);
+      assert.match(output, /src\/bar\.ts — moderate/);
+      assert.match(output, /Author has 1 commit to this file in 6 months/);
+      assert.doesNotMatch(output, /src\/ —/);
+    } finally {
+      rmSync(famRepo, { recursive: true, force: true });
+    }
+  });
+
+  it("shows blast-radius dependents when modules use require() only", () => {
+    const requireRepo = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-require-e2e-")
+    );
+    try {
+      git(requireRepo, ["init"]);
+      git(requireRepo, ["config", "user.name", "Setup"]);
+      git(requireRepo, ["config", "user.email", "setup@example.com"]);
+
+      writeRepoFile(
+        requireRepo,
+        "src/core.js",
+        "module.exports = { core: 1 };\n"
+      );
+      writeRepoFile(
+        requireRepo,
+        "src/a.js",
+        "const { core } = require('./core');\nmodule.exports = { a: core };\n"
+      );
+      writeRepoFile(
+        requireRepo,
+        "src/b.js",
+        "const { core } = require('./core');\nmodule.exports = { b: core };\n"
+      );
+      commitAs(
+        requireRepo,
+        { name: "Carol Core", email: "carol@example.com" },
+        daysAgo(90),
+        "init core"
+      );
+      const base = git(requireRepo, ["rev-parse", "HEAD"]);
+
+      writeRepoFile(requireRepo, "src/core.js", "module.exports = { core: 2 };\n");
+      commitAs(
+        requireRepo,
+        { name: "Dev User", email: "dev@example.com" },
+        daysAgo(15),
+        "dev updates core"
+      );
+      const head = git(requireRepo, ["rev-parse", "HEAD"]);
+
+      const output = runEvidenceDemo(requireRepo, `${base}...${head}`, {
+        asOf: REFERENCE_DATE,
+      });
+
+      assert.match(output, /Blast Radius/);
+      assert.match(output, /src\/core\.js — isolated/);
+      assert.match(
+        output,
+        /Depended on by 2 modules, including src\/a\.js, src\/b\.js/
+      );
+      assert.doesNotMatch(output, /Not Analyzed for Blast Radius/);
+    } finally {
+      rmSync(requireRepo, { recursive: true, force: true });
     }
   });
 
@@ -278,10 +429,10 @@ describe("runEvidenceDemo", () => {
 
       assert.match(output, /Author: Dev User <dev@example.com>/);
       assert.match(output, /Familiarity/);
-      assert.match(output, /src\/ —/);
+      assert.match(output, /src\/core\.ts —/);
       assert.match(output, /Blast Radius/);
       assert.match(output, /src\/core\.ts — moderate/);
-      assert.match(output, /Imported by 3 modules/);
+      assert.match(output, /Depended on by 3 modules/);
       assert.match(output, /Limitations/);
       assert.doesNotMatch(output, /Not Analyzed for Blast Radius/);
     } finally {

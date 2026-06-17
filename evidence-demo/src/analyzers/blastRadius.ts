@@ -28,7 +28,8 @@ export interface DirectImporterResult {
 }
 
 /**
- * Slice 1: count direct importers of one changed JS/TS source file.
+ * Slice 1: count direct dependents of one changed JS/TS source file.
+ * Includes edges from static ESM imports and static-literal require().
  * Pure — no file I/O; uses the injected import graph.
  */
 export function countDirectImportersForFile(

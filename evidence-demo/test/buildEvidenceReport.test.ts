@@ -12,19 +12,19 @@ const author = { name: "Ada Lovelace", email: "ada@example.com" };
 
 const sampleFamiliarity: FamiliarityFinding[] = [
   {
-    area: "src/",
+    touchedFile: "src/util.ts",
     authorCommitCount: 3,
-    totalAreaCommitCount: 12,
+    totalFileCommitCount: 12,
     lastTouchDate: new Date("2026-05-01T00:00:00Z"),
-    shareOfAreaChurn: 0.25,
+    shareOfFileChurn: 0.25,
     characterization: "high",
   },
   {
-    area: "docs/",
+    touchedFile: "docs/guide.md",
     authorCommitCount: 0,
-    totalAreaCommitCount: 4,
+    totalFileCommitCount: 4,
     lastTouchDate: null,
-    shareOfAreaChurn: 0,
+    shareOfFileChurn: 0,
     characterization: "none",
   },
 ];
@@ -71,11 +71,11 @@ describe("buildEvidenceReport", () => {
       blastRadius: [],
     });
 
-    const srcFinding = report.familiarity.find((f) => f.area === "src/");
+    const srcFinding = report.familiarity.find((f) => f.touchedFile === "src/util.ts");
     assert.ok(srcFinding);
     assert.equal(srcFinding.authorCommitCount, 3);
-    assert.equal(srcFinding.totalAreaCommitCount, 12);
-    assert.equal(srcFinding.shareOfAreaChurn, 0.25);
+    assert.equal(srcFinding.totalFileCommitCount, 12);
+    assert.equal(srcFinding.shareOfFileChurn, 0.25);
     assert.equal(srcFinding.characterization, "high");
     assert.equal(
       srcFinding.lastTouchDate?.toISOString(),
@@ -143,11 +143,11 @@ describe("buildEvidenceReport", () => {
     assert.deepEqual(report.notAnalyzedForBlastRadius, ["README.md"]);
     assert.ok(
       report.limitations.some((item) =>
-        item.includes("JavaScript/TypeScript static imports only")
+        item.includes("static ESM import and static-literal CommonJS require()")
       )
     );
     assert.ok(
-      report.limitations.some((item) => item.includes("CommonJS require()"))
+      report.limitations.some((item) => item.includes("dynamic require()"))
     );
   });
 

@@ -6,7 +6,7 @@ Assemble the findings from the familiarity analyzer (LLD 0001) and the blast-rad
 
 ## The report is the product
 
-The acceptance test is whether a senior engineer reads the report and says "yes, that is actually why this PR is or is not risky." So the report is designed for that reader. It leads with the evidence and the supporting numbers, not a verdict. It shows, per changed area, the author's familiarity with the numbers behind it, and per changed file, the blast radius with the dependents named. It is honest about what it does not compute, because stated limitations are what make the computed parts trustworthy to a skeptic.
+The acceptance test is whether a senior engineer reads the report and says "yes, that is actually why this PR is or is not risky." So the report is designed for that reader. It leads with the evidence and the supporting numbers, not a verdict. It shows, per changed file, the author's familiarity with the numbers behind it, and per changed JavaScript or TypeScript source file, the blast radius with the dependents named. It is honest about what it does not compute, because stated limitations are what make the computed parts trustworthy to a skeptic.
 
 It deliberately does not produce a single risk score or a merge recommendation, because Peter explicitly said lead with evidence, not auto-merge. The report explains. The reader judges. That restraint is part of what is being tested.
 
@@ -28,7 +28,7 @@ evidence-demo/
     cli.ts                  # arg parsing, orchestration, the throwaway wrapper
     inputs/
       gitHistorySource.ts   # impure: reads git log from the local clone
-      importGraphSource.ts   # impure: walks JS/TS sources and parses static imports from the local clone
+      importGraphSource.ts   # impure: walks JS/TS sources and parses static imports and static-literal require() from the local clone
       changedFiles.ts        # impure: resolves the PR or range to changed files + author
     report/
       buildEvidenceReport.ts # pure: findings -> structured report
