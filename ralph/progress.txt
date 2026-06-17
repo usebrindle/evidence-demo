@@ -13,6 +13,7 @@
 - `touchedAreaForPath()` maps touched files to directory areas (`src/foo.ts` → `src/`); `analyzeFamiliarity` deduplicates areas and queries history at directory level
 - `shareOfAreaChurn()` and `characterizeFamiliarity()` implement Slice 3 normalization/labels; high requires last touch ≤60 days plus (≥3 commits or ≥25% share); recency gates prevent stale history from yielding high
 - `createImportGraph(repoPath)` in `importGraphSource.ts` walks `.ts`/`.tsx` files (skips `node_modules`, `dist`, etc.), parses imports via the TypeScript AST, resolves relative specifiers (extensionless + index files), and returns reverse-dependency map `ImportGraph` (target → sorted importer paths)
+- Pure blast-radius analyzer in `src/analyzers/blastRadius.ts` injects `ImportGraph`; `countDirectImportersForFile` is Slice 1 (single-file dependent count + paths); `analyzeBlastRadius` is Slice 2 (US-009)
 
 ---
 ## Wed, Jun 17, 2026 - US-001
@@ -105,5 +106,15 @@
   - Use `typescript` `createSourceFile` for import extraction; handle `ImportDeclaration`, `ExportDeclaration` (re-export from), and dynamic `import()`
   - Relative resolution tries bare path, `.ts`/`.tsx`/`.js`/`.jsx`, and `index.ts`/`index.tsx` variants
   - Path aliases (tsconfig paths) are out of scope until US-010; non-relative specifiers are ignored in v1
+  - Manual browser verification not needed (no UI changes)
+---
+## Wed, Jun 17, 2026 - US-008
+- Implemented pure `countDirectImportersForFile` in `blastRadius.ts`: changed file + injected import graph → direct dependent count and importer paths
+- No file I/O in analyzer; looks up reverse-dependency map from `ImportGraph`
+- Added unit tests with mock graph and integration tests against a real temp TypeScript repo via `createImportGraph`
+- Files changed: `evidence-demo/src/analyzers/blastRadius.ts`, `evidence-demo/test/blastRadius.test.ts`, `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Slice 1 function is `countDirectImportersForFile`; keep `analyzeBlastRadius` for characterization/dependents in US-009
+  - Normalize changed file paths with forward slashes before graph lookup (Windows compatibility)
   - Manual browser verification not needed (no UI changes)
 ---

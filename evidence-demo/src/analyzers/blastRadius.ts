@@ -19,6 +19,28 @@ export interface BlastRadiusInput {
   importGraph: ImportGraph;
 }
 
+export interface DirectImporterResult {
+  dependentCount: number;
+  dependents: readonly string[];
+}
+
+/**
+ * Slice 1: count direct importers of one changed TypeScript file.
+ * Pure — no file I/O; uses the injected import graph.
+ */
+export function countDirectImportersForFile(
+  changedFile: string,
+  importGraph: ImportGraph
+): DirectImporterResult {
+  const normalized = changedFile.replace(/\\/g, "/");
+  const dependents = importGraph.get(normalized) ?? [];
+
+  return {
+    dependentCount: dependents.length,
+    dependents,
+  };
+}
+
 export function analyzeBlastRadius(
   _input: BlastRadiusInput
 ): BlastRadiusFinding[] {
