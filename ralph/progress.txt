@@ -12,6 +12,7 @@
 - Pure familiarity analyzer in `src/analyzers/familiarity.ts` injects `GitHistorySource`; use optional `asOf` date param for deterministic tests; `countAuthorCommitsToFile` is Slice 1, `analyzeFamiliarity` is Slice 2 (directory aggregation + recency)
 - `touchedAreaForPath()` maps touched files to directory areas (`src/foo.ts` → `src/`); `analyzeFamiliarity` deduplicates areas and queries history at directory level
 - `shareOfAreaChurn()` and `characterizeFamiliarity()` implement Slice 3 normalization/labels; high requires last touch ≤60 days plus (≥3 commits or ≥25% share); recency gates prevent stale history from yielding high
+- `createImportGraph(repoPath)` in `importGraphSource.ts` walks `.ts`/`.tsx` files (skips `node_modules`, `dist`, etc.), parses imports via the TypeScript AST, resolves relative specifiers (extensionless + index files), and returns reverse-dependency map `ImportGraph` (target → sorted importer paths)
 
 ---
 ## Wed, Jun 17, 2026 - US-001
@@ -94,5 +95,15 @@
 - **Learnings for future iterations:**
   - Export `characterizeFamiliarity` for deterministic unit tests; pass `asOf` through from `analyzeFamiliarity` for integration tests
   - High characterization requires last touch within 60 days; commits alone cannot override stale recency beyond 180 days (always none)
+  - Manual browser verification not needed (no UI changes)
+---
+## Wed, Jun 17, 2026 - US-007
+- Implemented `createImportGraph` in `importGraphSource.ts`: scans TypeScript sources, parses static/dynamic/export-from imports, resolves relative specifiers, builds reverse-dependency `ImportGraph`
+- Added 4 integration tests covering multi-file importers, parent-directory imports, extensionless paths, and node_modules exclusion
+- Files changed: `evidence-demo/src/inputs/importGraphSource.ts`, `evidence-demo/test/importGraphSource.test.ts`, `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Use `typescript` `createSourceFile` for import extraction; handle `ImportDeclaration`, `ExportDeclaration` (re-export from), and dynamic `import()`
+  - Relative resolution tries bare path, `.ts`/`.tsx`/`.js`/`.jsx`, and `index.ts`/`index.tsx` variants
+  - Path aliases (tsconfig paths) are out of scope until US-010; non-relative specifiers are ignored in v1
   - Manual browser verification not needed (no UI changes)
 ---

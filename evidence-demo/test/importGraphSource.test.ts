@@ -1,0 +1,113 @@
+import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { after, before, describe, it } from "node:test";
+
+import { createImportGraph } from "../src/inputs/importGraphSource.js";
+
+function writeRepoFile(
+  repoPath: string,
+  relativePath: string,
+  contents: string
+): void {
+  const fullPath = path.join(repoPath, relativePath);
+  mkdirSync(path.dirname(fullPath), { recursive: true });
+  writeFileSync(fullPath, contents, "utf8");
+}
+
+describe("createImportGraph", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-import-graph-")
+    );
+
+    writeRepoFile(
+      repoPath,
+      "src/util.ts",
+      "export const util = 1;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/a.ts",
+      "import { util } from './util';\nexport const a = util;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/b.ts",
+      "import { util } from './util';\nexport const b = util;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/nested/c.ts",
+      "import { util } from '../util';\nexport const c = util;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/helper.ts",
+      "export const helper = true;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/extensionless.ts",
+      "import { helper } from './helper';\nexport const value = helper;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/reexport.ts",
+      "export { util } from './util';\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/dynamic.ts",
+      "export async function load() {\n  return import('./util');\n}\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/external.ts",
+      "import fs from 'node:fs';\nexport const read = fs.readFileSync;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "node_modules/ignored/pkg.ts",
+      "import { util } from '../../src/util';\nexport const ignored = util;\n"
+    );
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("builds reverse-dependency map for relative imports", () => {
+    const graph = createImportGraph(repoPath);
+
+    assert.deepEqual(graph.get("src/util.ts"), [
+      "src/a.ts",
+      "src/b.ts",
+      "src/dynamic.ts",
+      "src/nested/c.ts",
+      "src/reexport.ts",
+    ]);
+  });
+
+  it("resolves extensionless relative imports", () => {
+    const graph = createImportGraph(repoPath);
+
+    assert.deepEqual(graph.get("src/helper.ts"), ["src/extensionless.ts"]);
+  });
+
+  it("ignores package and node built-in imports", () => {
+    const graph = createImportGraph(repoPath);
+
+    assert.equal(graph.has("node:fs"), false);
+    assert.equal(graph.has("src/external.ts"), false);
+  });
+
+  it("skips node_modules when scanning the repo", () => {
+    const graph = createImportGraph(repoPath);
+
+    assert.equal(graph.get("src/util.ts")?.includes("node_modules/ignored/pkg.ts"), false);
+  });
+});
