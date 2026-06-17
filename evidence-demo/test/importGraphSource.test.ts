@@ -168,3 +168,79 @@ describe("createImportGraph path aliases", () => {
     ]);
   });
 });
+
+describe("createImportGraph JavaScript files", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-import-graph-js-")
+    );
+
+    writeRepoFile(
+      repoPath,
+      "src/util.js",
+      "export const util = 1;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/a.js",
+      "import { util } from './util.js';\nexport const a = util;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/b.js",
+      "import { util } from './util';\nexport const b = util;\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/components/Button.jsx",
+      "export function Button() { return null; }\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/components/App.jsx",
+      "import { Button } from './Button.jsx';\nexport function App() { return Button(); }\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/components/Card.jsx",
+      "import { Button } from './Button';\nexport function Card() { return Button(); }\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/legacy/config.js",
+      "export const config = { api: true };\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/consumer.ts",
+      "import { config } from './legacy/config.js';\nexport const enabled = config.api;\n"
+    );
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("builds reverse-dependency map for .js importing .js", () => {
+    const graph = createImportGraph(repoPath);
+
+    assert.deepEqual(graph.get("src/util.js"), ["src/a.js", "src/b.js"]);
+  });
+
+  it("builds reverse-dependency map for .jsx importing .jsx", () => {
+    const graph = createImportGraph(repoPath);
+
+    assert.deepEqual(graph.get("src/components/Button.jsx"), [
+      "src/components/App.jsx",
+      "src/components/Card.jsx",
+    ]);
+  });
+
+  it("resolves mixed .ts to .js import chain", () => {
+    const graph = createImportGraph(repoPath);
+
+    assert.deepEqual(graph.get("src/legacy/config.js"), ["src/consumer.ts"]);
+  });
+});
