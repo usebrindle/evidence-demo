@@ -1,0 +1,23 @@
+# Ralph Progress Log
+Started: Wed, Jun 17, 2026  3:02:28 PM
+
+## Codebase Patterns
+- `evidence-demo/` is the TypeScript package; run `npm run typecheck` and `npm run build` from that directory
+- Use `.js` extensions in TypeScript import paths (`moduleResolution: NodeNext`)
+- Pure analyzers live in `src/analyzers/`; impure git/file I/O lives in `src/inputs/`; report assembly in `src/report/`
+- CLI entry point is `src/cli.ts` → `dist/cli.js` via `bin` in package.json
+- History window constant `HISTORY_WINDOW_MONTHS = 6` lives in `gitHistorySource.ts`
+
+---
+## Wed, Jun 17, 2026 - US-001
+- Implemented TypeScript project scaffolding for `evidence-demo/` package
+- Created directory layout: `src/cli.ts`, `src/inputs/`, `src/report/`, `src/analyzers/`
+- Added package.json with CLI bin entry (`evidence-demo` → `dist/cli.js`), typecheck and build scripts
+- Stub modules with typed interfaces for all planned components; `buildEvidenceReport` and `renderReport` have minimal working implementations
+- Initialized git repo on branch `ralph/evidence-demo`
+- Files changed: `evidence-demo/package.json`, `evidence-demo/tsconfig.json`, `evidence-demo/.gitignore`, `evidence-demo/src/**`, `.gitignore`, `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Use `fileURLToPath(import.meta.url)` for reliable ESM main-module detection on Windows
+  - `npm run typecheck` (`tsc --noEmit`) is the quality gate for this project (no test runner yet)
+  - Report modules can be implemented incrementally while input/analyzer stubs throw "not yet implemented"
+---

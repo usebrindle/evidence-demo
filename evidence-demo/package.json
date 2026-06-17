@@ -1,0 +1,21 @@
+{
+  "name": "evidence-demo",
+  "version": "0.1.0",
+  "description": "Local CLI that analyzes a PR against a cloned repo and prints a human-readable evidence report",
+  "type": "module",
+  "bin": {
+    "evidence-demo": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "start": "node dist/cli.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "typescript": "^5.8.3"
+  }
+}
