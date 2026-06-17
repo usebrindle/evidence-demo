@@ -137,7 +137,7 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /src\/auth\.ts — isolated/);
     assert.match(output, /Imported by 2 modules, including src\/login\.ts, src\/signup\.ts/);
     assert.match(output, /Limitations/);
-    assert.doesNotMatch(output, /no TypeScript changed files to analyze/);
+    assert.doesNotMatch(output, /no analyzable JS\/TS changed files to analyze/);
   });
 
   it("prints a complete report for a branch name", () => {
@@ -152,7 +152,7 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /Imported by 2 modules/);
   });
 
-  it("lists non-TypeScript changed files under not-analyzed for blast radius", () => {
+  it("lists non-analyzable changed files under not-analyzed for blast radius", () => {
     writeRepoFile(repoPath, "docs/guide.md", "# Guide\n");
     commitAs(
       repoPath,
@@ -168,7 +168,10 @@ describe("runEvidenceDemo", () => {
 
     assert.match(output, /Not Analyzed for Blast Radius/);
     assert.match(output, /docs\/guide\.md/);
-    assert.match(output, /Blast-radius analysis covers TypeScript static imports only/);
+    assert.match(
+      output,
+      /Blast-radius analysis covers JavaScript\/TypeScript static imports only; CommonJS require\(\) is not analyzed/
+    );
     assert.match(output, /src\/auth\.ts — isolated/);
   });
 

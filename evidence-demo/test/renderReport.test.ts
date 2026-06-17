@@ -108,7 +108,7 @@ describe("renderReport", () => {
     assert.doesNotMatch(text, /^Recommendation:/im);
   });
 
-  it("lists non-TypeScript changed files with a TS-only note", () => {
+  it("lists non-analyzable changed files with a JS/TS-only note", () => {
     const report = buildEvidenceReport({
       author,
       changedFiles: ["src/util.ts", "README.md", "package.json"],
@@ -121,7 +121,7 @@ describe("renderReport", () => {
     assert.match(text, /Not Analyzed for Blast Radius/);
     assert.match(
       text,
-      /Blast-radius analysis covers TypeScript static imports only\./
+      /Blast-radius analysis covers JavaScript\/TypeScript static imports only; CommonJS require\(\) is not analyzed\./
     );
     assert.match(text, /README\.md/);
     assert.match(text, /package\.json/);
@@ -146,6 +146,10 @@ describe("renderReport", () => {
     assert.match(text, /  src\/util\.ts/);
     assert.match(text, /Familiarity\n-{11}/);
     assert.match(text, /Blast Radius\n-{12}/);
+    assert.match(
+      text,
+      /Direct static importers of each changed JavaScript or TypeScript source file\./
+    );
     assert.ok(text.endsWith(report.limitations.at(-1)!));
   });
 
