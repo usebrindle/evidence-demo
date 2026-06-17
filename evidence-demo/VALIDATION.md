@@ -110,13 +110,15 @@ Each changed file gets its own Familiarity line with file-scoped commit counts, 
 
 ## Known caveats (not blockers for demo validation)
 
-1. **Monorepo import graph undercounting** — On zod #6098, core `schemas.ts` files report "Depended on by no modules" despite being central. Cross-package imports within monorepos may not fully resolve in v1. The limitations section covers this; blast-radius numbers should be read as a lower bound.
+1. **Monorepo import graph undercounting** — On zod #6098, core `schemas.ts` files report "Depended on by no modules" despite being central. Cross-package imports within monorepos may not fully resolve in v1. This is separate from path-alias scope (below); blast-radius numbers should be read as a lower bound.
 
-2. **Bot/co-author identity** — renovate[bot] PRs produce familiarity based on bot email, which is low-signal. Acceptable for demo; called out here for human review.
+2. **Path alias resolution scope** — Path aliases are resolved only from the repository root `tsconfig.json` or `jsconfig.json` (`compilerOptions.paths` / `baseUrl`). Aliases defined only in bundler config (e.g. Vite, Webpack) or nested package configs are not applied. Zero-dependent counts on heavily imported files may reflect this gap rather than true isolation.
 
-3. **Test file blast radius** — Changed test files often show zero importers. Factually correct but low signal; reader can ignore isolated test-file entries.
+3. **Bot/co-author identity** — renovate[bot] PRs produce familiarity based on bot email, which is low-signal. Acceptable for demo; called out here for human review.
 
-4. **PR ref fetch** — PR numbers require `git fetch origin pull/N/head:refs/remotes/origin/pull/N/head` locally. The validation script handles this.
+4. **Test file blast radius** — Changed test files often show zero importers. Factually correct but low signal; reader can ignore isolated test-file entries.
+
+5. **PR ref fetch** — PR numbers require `git fetch origin pull/N/head:refs/remotes/origin/pull/N/head` locally. The validation script handles this.
 
 ## Conclusion
 

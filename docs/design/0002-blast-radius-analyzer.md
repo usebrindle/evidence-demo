@@ -29,6 +29,18 @@ Out of scope, and stated as a limitation ... dynamic requires whose specifier is
 
 This line matters for credibility. The report states that it counts static `import` and static-literal `require()` dependents only, and that dynamic `require()` and runtime indirection are not counted, so a senior engineer reading "depended on by N modules" knows exactly what that number does and does not include.
 
+## Path aliases, what is in and what is not
+
+Real JS/TS repos often import via path aliases (`@/components/Foo`, `~/utils`) rather than relative paths. The analyzer resolves these using TypeScript `compilerOptions.paths` and `baseUrl` semantics, but only from a single config file at the repository root.
+
+In scope ... `compilerOptions.paths` and `baseUrl` read from the repository root `tsconfig.json` or `jsconfig.json` (whichever is found first). Alias patterns and targets are applied the same way TypeScript would when resolving a module specifier from a file in the repo.
+
+Out of scope, and stated as a limitation ... aliases defined only in bundler config (Vite `resolve.alias`, Webpack `alias`, and similar) when those entries are not mirrored in the root tsconfig/jsconfig; nested package `tsconfig.json` files in a monorepo (per-package paths, project references, or other nested configs); walking or merging multiple config files beyond that one root file. These are not read, so specifiers that resolve only through bundler or nested config will not connect edges in the dependency graph, and dependent counts may undercount.
+
+Indirect win ... when a bundler's alias table mirrors the root tsconfig paths (a common setup), imports using those aliases are still resolved correctly because the root config carries the mapping. The limitation is about config source, not about every alias pattern in the wild.
+
+The report limitations section states this explicitly: path aliases are resolved only from the repository root `tsconfig.json` or `jsconfig.json` (`compilerOptions.paths` / `baseUrl`); aliases defined only in bundler config (e.g. Vite, Webpack) or nested package configs are not applied. A senior engineer reading "depended on by no modules" on a heavily aliased import should check whether the alias is covered by root tsconfig before treating zero as isolated.
+
 ## Platform resolution beyond require, still out of scope
 
 CommonJS support narrows but does not close the gap on platforms with their own module resolution. SFCC, for example, also wires modules through the cartridge path, template includes, and platform resolution that are not expressed as either ESM imports or literal `require()` calls. So even with `require()` support, blast radius on such platforms should be read as a lower bound, and the report and limitations say so. Closing the platform-resolution gap is deferred and is genuinely hard, exactly the robustness work Peter named.
@@ -43,13 +55,13 @@ Slice 1 ... for one changed JS/TS file, count how many other files in the repo s
 
 Slice 2 ... characterize each changed file as isolated, moderate, or broad from its dependent count, and include a sample of dependents in the finding.
 
-Slice 3 ... handle path-aliased references (tsconfig/jsconfig paths) in addition to relative ones, since real JS/TS repos use aliases and missing them would undercount dependents and mislead.
+Slice 3 ... handle path-aliased references from root tsconfig/jsconfig paths in addition to relative ones, since real JS/TS repos use aliases and missing them would undercount dependents and mislead.
 
 Slice 4 ... extract static-literal `require()` calls and fold them into the same reverse-dependency map, so `require`-based dependents are counted alongside `import`-based ones. Add fixtures covering a `.js` file required by other `.js` files, and confirm a dynamic `require(variable)` is not counted and triggers no false edge.
 
 ## Out of scope for the demo
 
-The robustness items are deferred ... dynamic and computed `require()` and runtime module indirection (not statically resolvable), dynamic `import()` with a non-literal specifier, transitive dependency impact (the demo counts direct dependents only, not the full downstream reach), platform-specific resolution such as the SFCC cartridge path and template includes, generated code, monorepo package boundaries and cross-package resolution, non-JS/TS source files (Python, Go, etc.), public-interface and API-surface analysis as a distinct signal, and config or schema files whose impact is real but not expressed through imports or requires. These are the hard parts Peter named, and several of them (transitive impact, public interface, platform resolution, config dependencies) are genuinely where the moat is. The demo computes direct static dependency breadth and is explicit in the report about exactly what it counts, so the reader is not misled about transitive reach or platform wiring.
+The robustness items are deferred ... dynamic and computed `require()` and runtime module indirection (not statically resolvable), dynamic `import()` with a non-literal specifier, transitive dependency impact (the demo counts direct dependents only, not the full downstream reach), platform-specific resolution such as the SFCC cartridge path and template includes, generated code, monorepo package boundaries and cross-package resolution, bundler-only path aliases and nested package tsconfig paths (when not mirrored at the repo root), non-JS/TS source files (Python, Go, etc.), public-interface and API-surface analysis as a distinct signal, and config or schema files whose impact is real but not expressed through imports or requires. These are the hard parts Peter named, and several of them (transitive impact, public interface, platform resolution, config dependencies) are genuinely where the moat is. The demo computes direct static dependency breadth and is explicit in the report about exactly what it counts, so the reader is not misled about transitive reach or platform wiring.
 
 ## Notes for the report
 

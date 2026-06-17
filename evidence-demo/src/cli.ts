@@ -19,6 +19,8 @@ import { renderReport } from "./report/renderReport.js";
 export interface RunEvidenceDemoOptions {
   /** Reference date for history window and recency (defaults to now). */
   asOf?: Date;
+  /** When omitted, auto-detect from TTY and NO_COLOR / FORCE_COLOR. */
+  color?: boolean;
 }
 
 /**
@@ -62,7 +64,7 @@ export function runEvidenceDemo(
     blastRadius,
   });
 
-  return renderReport(report, { asOf });
+  return renderReport(report, { asOf, color: options.color });
 }
 
 export function main(argv: string[] = process.argv.slice(2)): void {
