@@ -232,6 +232,63 @@ describe("runEvidenceDemo", () => {
     }
   });
 
+  it("shows blast-radius dependents when modules use require() only", () => {
+    const requireRepo = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-require-e2e-")
+    );
+    try {
+      git(requireRepo, ["init"]);
+      git(requireRepo, ["config", "user.name", "Setup"]);
+      git(requireRepo, ["config", "user.email", "setup@example.com"]);
+
+      writeRepoFile(
+        requireRepo,
+        "src/core.js",
+        "module.exports = { core: 1 };\n"
+      );
+      writeRepoFile(
+        requireRepo,
+        "src/a.js",
+        "const { core } = require('./core');\nmodule.exports = { a: core };\n"
+      );
+      writeRepoFile(
+        requireRepo,
+        "src/b.js",
+        "const { core } = require('./core');\nmodule.exports = { b: core };\n"
+      );
+      commitAs(
+        requireRepo,
+        { name: "Carol Core", email: "carol@example.com" },
+        daysAgo(90),
+        "init core"
+      );
+      const base = git(requireRepo, ["rev-parse", "HEAD"]);
+
+      writeRepoFile(requireRepo, "src/core.js", "module.exports = { core: 2 };\n");
+      commitAs(
+        requireRepo,
+        { name: "Dev User", email: "dev@example.com" },
+        daysAgo(15),
+        "dev updates core"
+      );
+      const head = git(requireRepo, ["rev-parse", "HEAD"]);
+
+      const output = runEvidenceDemo(requireRepo, `${base}...${head}`, {
+        asOf: REFERENCE_DATE,
+      });
+
+      assert.match(output, /Blast Radius/);
+      assert.match(output, /src\/core\.js — isolated/);
+      assert.match(
+        output,
+        /Imported by 2 modules, including src\/a\.js, src\/b\.js/
+      );
+      assert.doesNotMatch(output, /Not Analyzed for Blast Radius/);
+    } finally {
+      rmSync(requireRepo, { recursive: true, force: true });
+    }
+  });
+
   it("produces a complete end-to-end report against a TypeScript repo with importers", () => {
     const e2eRepo = mkdtempSync(path.join(os.tmpdir(), "evidence-demo-e2e-"));
     try {
