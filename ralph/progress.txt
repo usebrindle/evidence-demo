@@ -9,6 +9,7 @@
 - `createGitHistorySource(repoPath).query({ authorEmail, path, since })` returns `{ authorCommitCount, totalCommitCount, lastTouchDate }` via local `git log`
 - Tests live in `evidence-demo/test/`; compile with `tsconfig.test.json` to `dist-test/`; run via `node --test dist-test/test/**/*.test.js`
 - `resolveChangedFiles` in `changedFiles.ts` uses local git only: `base...head` ranges, branch names (vs default branch), or PR numbers (via locally fetched `refs/pull/N/head`)
+- Pure familiarity analyzer in `src/analyzers/familiarity.ts` injects `GitHistorySource`; use optional `asOf` date param for deterministic tests; `countAuthorCommitsToFile` is Slice 1, full `analyzeFamiliarity` comes in later slices
 
 ---
 ## Wed, Jun 17, 2026 - US-001
@@ -60,5 +61,15 @@
 - Files changed: `ralph/prd.json`, `ralph/progress.txt`
 - **Learnings for future iterations:**
   - Always set `passes: true` in `ralph/prd.json` in the same commit as the story implementation
+  - Manual browser verification not needed (no UI changes)
+---
+## Wed, Jun 17, 2026 - US-004
+- Implemented pure `countAuthorCommitsToFile` in `familiarity.ts`: author + touched path + injected history source → raw commit count over 6-month window
+- No git shell-out in analyzer; uses `historyWindowSince(asOf)` and `historySource.query()`
+- Added integration tests against a real temp git repo (4 tests)
+- Files changed: `evidence-demo/src/analyzers/familiarity.ts`, `evidence-demo/test/familiarity.test.ts`, `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Pass optional `asOf: Date` to analyzer functions so tests can pin the history window without mocking `Date`
+  - Slice 1 function is `countAuthorCommitsToFile`; keep `analyzeFamiliarity` for directory aggregation/characterization in US-005/US-006
   - Manual browser verification not needed (no UI changes)
 ---
