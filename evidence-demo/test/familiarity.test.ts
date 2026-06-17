@@ -7,7 +7,9 @@ import { after, before, describe, it } from "node:test";
 
 import {
   analyzeFamiliarity,
+  characterizeFamiliarity,
   countAuthorCommitsToFile,
+  shareOfAreaChurn,
 } from "../src/analyzers/familiarity.js";
 import { createGitHistorySource } from "../src/inputs/gitHistorySource.js";
 
@@ -319,5 +321,196 @@ describe("analyzeFamiliarity", () => {
     assert.equal(findings[0]?.authorCommitCount, 1);
     assert.equal(findings[0]?.totalAreaCommitCount, 2);
     assert.deepEqual(findings[0]?.lastTouchDate, daysAgo(20));
+  });
+});
+
+describe("shareOfAreaChurn", () => {
+  it("returns author commits divided by total area commits", () => {
+    assert.equal(shareOfAreaChurn(3, 12), 0.25);
+  });
+
+  it("returns zero when the area has no churn", () => {
+    assert.equal(shareOfAreaChurn(0, 0), 0);
+  });
+});
+
+describe("characterizeFamiliarity", () => {
+  it("returns high when recent with enough commits", () => {
+    const result = characterizeFamiliarity(3, 10, daysAgo(30), REFERENCE_DATE);
+    assert.equal(result.characterization, "high");
+    assert.equal(result.shareOfAreaChurn, 0.3);
+  });
+
+  it("returns high when recent with high share but fewer than 3 commits", () => {
+    const result = characterizeFamiliarity(2, 6, daysAgo(45), REFERENCE_DATE);
+    assert.equal(result.characterization, "high");
+    assert.equal(result.shareOfAreaChurn, 1 / 3);
+  });
+
+  it("returns moderate when recent with one commit below high thresholds", () => {
+    const result = characterizeFamiliarity(1, 20, daysAgo(90), REFERENCE_DATE);
+    assert.equal(result.characterization, "moderate");
+    assert.equal(result.shareOfAreaChurn, 0.05);
+  });
+
+  it("returns moderate for two commits between 121 and 180 days ago", () => {
+    const result = characterizeFamiliarity(2, 10, daysAgo(150), REFERENCE_DATE);
+    assert.equal(result.characterization, "moderate");
+  });
+
+  it("returns none for zero commits", () => {
+    const result = characterizeFamiliarity(0, 5, null, REFERENCE_DATE);
+    assert.equal(result.characterization, "none");
+    assert.equal(result.shareOfAreaChurn, 0);
+  });
+
+  it("returns none for a single stale commit beyond 120 days", () => {
+    const result = characterizeFamiliarity(1, 5, daysAgo(130), REFERENCE_DATE);
+    assert.equal(result.characterization, "none");
+  });
+
+  it("returns none when last touch is beyond 180 days regardless of commit count", () => {
+    const result = characterizeFamiliarity(10, 20, daysAgo(200), REFERENCE_DATE);
+    assert.equal(result.characterization, "none");
+  });
+
+  it("cannot return high when last touch is beyond 60 days even with many commits", () => {
+    const result = characterizeFamiliarity(10, 10, daysAgo(90), REFERENCE_DATE);
+    assert.equal(result.characterization, "moderate");
+  });
+});
+
+describe("analyzeFamiliarity characterization", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-familiarity-slice3-")
+    );
+    git(repoPath, ["init"]);
+    git(repoPath, ["config", "user.name", "Setup"]);
+    git(repoPath, ["config", "user.email", "setup@example.com"]);
+
+    writeRepoFile(repoPath, "src/foo.ts", "export const foo = 1;\n");
+    commitAs(
+      repoPath,
+      { name: "Alice Author", email: "alice@example.com" },
+      daysAgo(200),
+      "alice initial foo outside window"
+    );
+
+    writeRepoFile(repoPath, "src/foo.ts", "export const foo = 2;\n");
+    commitAs(
+      repoPath,
+      { name: "Bob Builder", email: "bob@example.com" },
+      daysAgo(150),
+      "bob first foo"
+    );
+
+    writeRepoFile(repoPath, "src/foo.ts", "export const foo = 3;\n");
+    commitAs(
+      repoPath,
+      { name: "Alice Author", email: "alice@example.com" },
+      daysAgo(90),
+      "alice first in-window foo"
+    );
+
+    writeRepoFile(repoPath, "src/foo.ts", "export const foo = 4;\n");
+    commitAs(
+      repoPath,
+      { name: "Bob Builder", email: "bob@example.com" },
+      daysAgo(60),
+      "bob second foo"
+    );
+
+    writeRepoFile(repoPath, "src/foo.ts", "export const foo = 5;\n");
+    commitAs(
+      repoPath,
+      { name: "Alice Author", email: "alice@example.com" },
+      daysAgo(10),
+      "alice recent foo"
+    );
+
+    writeRepoFile(repoPath, "src/bar.ts", "export const bar = 1;\n");
+    commitAs(
+      repoPath,
+      { name: "Alice Author", email: "alice@example.com" },
+      daysAgo(5),
+      "alice bar only"
+    );
+
+    writeRepoFile(repoPath, "lib/util.ts", "export const util = 1;\n");
+    commitAs(
+      repoPath,
+      { name: "Alice Author", email: "alice@example.com" },
+      daysAgo(20),
+      "alice lib util"
+    );
+
+    writeRepoFile(repoPath, "lib/util.ts", "export const util = 2;\n");
+    commitAs(
+      repoPath,
+      { name: "Bob Builder", email: "bob@example.com" },
+      daysAgo(15),
+      "bob lib util"
+    );
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("computes share and high characterization for active areas", () => {
+    const historySource = createGitHistorySource(repoPath);
+    const findings = analyzeFamiliarity(
+      {
+        author: { name: "Alice Author", email: "alice@example.com" },
+        touchedPaths: ["src/foo.ts"],
+        historySource,
+      },
+      REFERENCE_DATE
+    );
+
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.authorCommitCount, 3);
+    assert.equal(findings[0]?.totalAreaCommitCount, 5);
+    assert.equal(findings[0]?.shareOfAreaChurn, 0.6);
+    assert.equal(findings[0]?.characterization, "high");
+  });
+
+  it("retains supporting numbers alongside the characterization label", () => {
+    const historySource = createGitHistorySource(repoPath);
+    const findings = analyzeFamiliarity(
+      {
+        author: { name: "Alice Author", email: "alice@example.com" },
+        touchedPaths: ["lib/util.ts"],
+        historySource,
+      },
+      REFERENCE_DATE
+    );
+
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.authorCommitCount, 1);
+    assert.equal(findings[0]?.totalAreaCommitCount, 2);
+    assert.equal(findings[0]?.shareOfAreaChurn, 0.5);
+    assert.equal(findings[0]?.characterization, "high");
+    assert.deepEqual(findings[0]?.lastTouchDate, daysAgo(20));
+  });
+
+  it("returns none for authors with no commits in the window", () => {
+    const historySource = createGitHistorySource(repoPath);
+    const findings = analyzeFamiliarity(
+      {
+        author: { name: "Charlie Coder", email: "charlie@example.com" },
+        touchedPaths: ["src/foo.ts"],
+        historySource,
+      },
+      REFERENCE_DATE
+    );
+
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.authorCommitCount, 0);
+    assert.equal(findings[0]?.characterization, "none");
+    assert.equal(findings[0]?.shareOfAreaChurn, 0);
   });
 });

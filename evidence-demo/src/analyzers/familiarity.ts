@@ -40,6 +40,69 @@ export function countAuthorCommitsToFile(
   return stats.authorCommitCount;
 }
 
+export type FamiliarityCharacterization = FamiliarityFinding["characterization"];
+
+/** Author's share of total commits in an area (0 when area has no churn). */
+export function shareOfAreaChurn(
+  authorCommitCount: number,
+  totalAreaCommitCount: number
+): number {
+  if (totalAreaCommitCount === 0) {
+    return 0;
+  }
+  return authorCommitCount / totalAreaCommitCount;
+}
+
+function daysSince(date: Date, asOf: Date): number {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.floor((asOf.getTime() - date.getTime()) / msPerDay);
+}
+
+/**
+ * Slice 3: characterize familiarity from counts, share, and recency.
+ * Stale history cannot yield high regardless of commit count.
+ */
+export function characterizeFamiliarity(
+  authorCommitCount: number,
+  totalAreaCommitCount: number,
+  lastTouchDate: Date | null,
+  asOf: Date = new Date()
+): Pick<FamiliarityFinding, "shareOfAreaChurn" | "characterization"> {
+  const share = shareOfAreaChurn(authorCommitCount, totalAreaCommitCount);
+
+  if (authorCommitCount === 0 || lastTouchDate === null) {
+    return { shareOfAreaChurn: share, characterization: "none" };
+  }
+
+  const recencyDays = daysSince(lastTouchDate, asOf);
+
+  if (recencyDays > 180) {
+    return { shareOfAreaChurn: share, characterization: "none" };
+  }
+
+  if (recencyDays > 120 && authorCommitCount === 1) {
+    return { shareOfAreaChurn: share, characterization: "none" };
+  }
+
+  const qualifiesForHigh =
+    recencyDays <= 60 &&
+    (authorCommitCount >= 3 || share >= 0.25);
+
+  if (qualifiesForHigh) {
+    return { shareOfAreaChurn: share, characterization: "high" };
+  }
+
+  const qualifiesForModerate =
+    (recencyDays <= 120 && authorCommitCount >= 1) ||
+    (recencyDays > 120 && recencyDays <= 180 && authorCommitCount >= 2);
+
+  if (qualifiesForModerate) {
+    return { shareOfAreaChurn: share, characterization: "moderate" };
+  }
+
+  return { shareOfAreaChurn: share, characterization: "none" };
+}
+
 /** Map a touched file path to its containing directory area for aggregation. */
 export function touchedAreaForPath(filePath: string): string {
   const normalized = filePath.replace(/\\/g, "/");
@@ -70,13 +133,20 @@ export function analyzeFamiliarity(
       since,
     });
 
+    const { shareOfAreaChurn, characterization } = characterizeFamiliarity(
+      stats.authorCommitCount,
+      stats.totalCommitCount,
+      stats.lastTouchDate,
+      asOf
+    );
+
     return {
       area,
       authorCommitCount: stats.authorCommitCount,
       totalAreaCommitCount: stats.totalCommitCount,
       lastTouchDate: stats.lastTouchDate,
-      shareOfAreaChurn: 0,
-      characterization: "none" as const,
+      shareOfAreaChurn,
+      characterization,
     };
   });
 }
