@@ -131,7 +131,7 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /Evidence Report/);
     assert.match(output, /Author: Alice Author <alice@example.com>/);
     assert.match(output, /Familiarity/);
-    assert.match(output, /src\/ — (high|moderate|none)/);
+    assert.match(output, /src\/auth\.ts — (high|moderate|none)/);
     assert.match(output, /Author has 2 commits here in 6 months/);
     assert.match(output, /Blast Radius/);
     assert.match(output, /src\/auth\.ts — isolated/);
@@ -146,7 +146,7 @@ describe("runEvidenceDemo", () => {
     });
 
     assert.match(output, /Author: Alice Author <alice@example.com>/);
-    assert.match(output, /src\/ —/);
+    assert.match(output, /src\/auth\.ts —/);
     assert.match(output, /Changed files \(3\):/);
     assert.match(output, /src\/auth\.ts — isolated/);
     assert.match(output, /Depended on by 2 modules/);
@@ -221,7 +221,7 @@ describe("runEvidenceDemo", () => {
 
       assert.match(output, /Author: Dev User <dev@example.com>/);
       assert.match(output, /Familiarity/);
-      assert.match(output, /src\/ —/);
+      assert.match(output, /src\/core\.js —/);
       assert.match(output, /Blast Radius/);
       assert.match(output, /src\/core\.js — moderate/);
       assert.match(output, /Depended on by 3 modules/);
@@ -335,7 +335,7 @@ describe("runEvidenceDemo", () => {
 
       assert.match(output, /Author: Dev User <dev@example.com>/);
       assert.match(output, /Familiarity/);
-      assert.match(output, /src\/ —/);
+      assert.match(output, /src\/core\.ts —/);
       assert.match(output, /Blast Radius/);
       assert.match(output, /src\/core\.ts — moderate/);
       assert.match(output, /Depended on by 3 modules/);

@@ -70,7 +70,7 @@ function formatFamiliarityDetail(
 ): string {
   const othersCommitCount = Math.max(
     0,
-    finding.totalAreaCommitCount - finding.authorCommitCount
+    finding.totalFileCommitCount - finding.authorCommitCount
   );
   const lastTouchPhrase =
     finding.lastTouchDate === null
@@ -94,13 +94,13 @@ function formatFamiliarityDetail(
     return `Author has ${authorCommitsPhrase} here in 6 months (sole contributor in window), ${lastTouchPhrase}.`;
   }
 
-  const sharePhrase = ` (${formatShare(finding.shareOfAreaChurn)} of area churn)`;
+  const sharePhrase = ` (${formatShare(finding.shareOfFileChurn)} of area churn)`;
   const othersPhrase =
     othersCommitCount === 1
       ? "1 commit by others"
       : `${othersCommitCount} commits by others`;
 
-  return `Author has ${authorCommitsPhrase} here in 6 months${sharePhrase}, ${lastTouchPhrase}; ${othersPhrase} in this window (${finding.totalAreaCommitCount} total).`;
+  return `Author has ${authorCommitsPhrase} here in 6 months${sharePhrase}, ${lastTouchPhrase}; ${othersPhrase} in this window (${finding.totalFileCommitCount} total).`;
 }
 
 function renderFamiliarityFinding(
@@ -108,7 +108,7 @@ function renderFamiliarityFinding(
   asOf: Date
 ): string[] {
   return [
-    `  ${formatAreaLabel(finding.area)} — ${finding.characterization}`,
+    `  ${formatAreaLabel(finding.touchedFile)} — ${finding.characterization}`,
     `    ${formatFamiliarityDetail(finding, asOf)}`,
   ];
 }
@@ -168,7 +168,7 @@ export function renderReport(
   const familiarity = [...report.familiarity].sort(
     (a, b) =>
       FAMILIARITY_ORDER[a.characterization] -
-        FAMILIARITY_ORDER[b.characterization] || a.area.localeCompare(b.area)
+        FAMILIARITY_ORDER[b.characterization] || a.touchedFile.localeCompare(b.touchedFile)
   );
 
   const blastRadius = [...report.blastRadius].sort(
