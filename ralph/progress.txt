@@ -9,7 +9,8 @@
 - `createGitHistorySource(repoPath).query({ authorEmail, path, since })` returns `{ authorCommitCount, totalCommitCount, lastTouchDate }` via local `git log`
 - Tests live in `evidence-demo/test/`; compile with `tsconfig.test.json` to `dist-test/`; run via `node --test dist-test/test/**/*.test.js`
 - `resolveChangedFiles` in `changedFiles.ts` uses local git only: `base...head` ranges, branch names (vs default branch), or PR numbers (via locally fetched `refs/pull/N/head`)
-- Pure familiarity analyzer in `src/analyzers/familiarity.ts` injects `GitHistorySource`; use optional `asOf` date param for deterministic tests; `countAuthorCommitsToFile` is Slice 1, full `analyzeFamiliarity` comes in later slices
+- Pure familiarity analyzer in `src/analyzers/familiarity.ts` injects `GitHistorySource`; use optional `asOf` date param for deterministic tests; `countAuthorCommitsToFile` is Slice 1, `analyzeFamiliarity` is Slice 2 (directory aggregation + recency)
+- `touchedAreaForPath()` maps touched files to directory areas (`src/foo.ts` → `src/`); `analyzeFamiliarity` deduplicates areas and queries history at directory level; `shareOfAreaChurn` and `characterization` are placeholders until US-006
 
 ---
 ## Wed, Jun 17, 2026 - US-001
@@ -71,5 +72,16 @@
 - **Learnings for future iterations:**
   - Pass optional `asOf: Date` to analyzer functions so tests can pin the history window without mocking `Date`
   - Slice 1 function is `countAuthorCommitsToFile`; keep `analyzeFamiliarity` for directory aggregation/characterization in US-005/US-006
+  - Manual browser verification not needed (no UI changes)
+---
+## Wed, Jun 17, 2026 - US-005
+- Implemented `analyzeFamiliarity` (Slice 2): directory-level commit aggregation and last-touch recency per touched area
+- Added `touchedAreaForPath()` helper; deduplicates touched paths to unique directory areas before querying history source
+- Returns structured `FamiliarityFinding` per area with `authorCommitCount`, `totalAreaCommitCount`, and `lastTouchDate`; `shareOfAreaChurn` and `characterization` left as placeholders for US-006
+- Added 4 integration tests for directory aggregation, recency, deduplication, and per-area counts
+- Files changed: `evidence-demo/src/analyzers/familiarity.ts`, `evidence-demo/test/familiarity.test.ts`, `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Directory queries use trailing-slash paths (e.g. `src/`) so git log aggregates the whole tree
+  - Multiple touched files in the same directory produce one finding, not one per file
   - Manual browser verification not needed (no UI changes)
 ---

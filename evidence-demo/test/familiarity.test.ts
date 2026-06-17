@@ -5,7 +5,10 @@ import os from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
 
-import { countAuthorCommitsToFile } from "../src/analyzers/familiarity.js";
+import {
+  analyzeFamiliarity,
+  countAuthorCommitsToFile,
+} from "../src/analyzers/familiarity.js";
 import { createGitHistorySource } from "../src/inputs/gitHistorySource.js";
 
 const REFERENCE_DATE = new Date("2026-06-17T12:00:00Z");
@@ -169,5 +172,152 @@ describe("countAuthorCommitsToFile", () => {
     );
 
     assert.notEqual(count, 3);
+  });
+});
+
+describe("analyzeFamiliarity", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-familiarity-slice2-")
+    );
+    git(repoPath, ["init"]);
+    git(repoPath, ["config", "user.name", "Setup"]);
+    git(repoPath, ["config", "user.email", "setup@example.com"]);
+
+    writeRepoFile(repoPath, "src/foo.ts", "export const foo = 1;\n");
+    commitAs(
+      repoPath,
+      { name: "Alice Author", email: "alice@example.com" },
+      daysAgo(200),
+      "alice initial foo outside window"
+    );
+
+    writeRepoFile(repoPath, "src/foo.ts", "export const foo = 2;\n");
+    commitAs(
+      repoPath,
+      { name: "Bob Builder", email: "bob@example.com" },
+      daysAgo(150),
+      "bob first foo"
+    );
+
+    writeRepoFile(repoPath, "src/foo.ts", "export const foo = 3;\n");
+    commitAs(
+      repoPath,
+      { name: "Alice Author", email: "alice@example.com" },
+      daysAgo(90),
+      "alice first in-window foo"
+    );
+
+    writeRepoFile(repoPath, "src/foo.ts", "export const foo = 4;\n");
+    commitAs(
+      repoPath,
+      { name: "Bob Builder", email: "bob@example.com" },
+      daysAgo(60),
+      "bob second foo"
+    );
+
+    writeRepoFile(repoPath, "src/foo.ts", "export const foo = 5;\n");
+    commitAs(
+      repoPath,
+      { name: "Alice Author", email: "alice@example.com" },
+      daysAgo(10),
+      "alice recent foo"
+    );
+
+    writeRepoFile(repoPath, "src/bar.ts", "export const bar = 1;\n");
+    commitAs(
+      repoPath,
+      { name: "Alice Author", email: "alice@example.com" },
+      daysAgo(5),
+      "alice bar only"
+    );
+
+    writeRepoFile(repoPath, "lib/util.ts", "export const util = 1;\n");
+    commitAs(
+      repoPath,
+      { name: "Alice Author", email: "alice@example.com" },
+      daysAgo(20),
+      "alice lib util"
+    );
+
+    writeRepoFile(repoPath, "lib/util.ts", "export const util = 2;\n");
+    commitAs(
+      repoPath,
+      { name: "Bob Builder", email: "bob@example.com" },
+      daysAgo(15),
+      "bob lib util"
+    );
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("aggregates author commit counts at the directory level", () => {
+    const historySource = createGitHistorySource(repoPath);
+    const findings = analyzeFamiliarity(
+      {
+        author: { name: "Alice Author", email: "alice@example.com" },
+        touchedPaths: ["src/foo.ts"],
+        historySource,
+      },
+      REFERENCE_DATE
+    );
+
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.area, "src/");
+    assert.equal(findings[0]?.authorCommitCount, 3);
+    assert.equal(findings[0]?.totalAreaCommitCount, 5);
+  });
+
+  it("includes the author's most recent commit date to each area", () => {
+    const historySource = createGitHistorySource(repoPath);
+    const findings = analyzeFamiliarity(
+      {
+        author: { name: "Alice Author", email: "alice@example.com" },
+        touchedPaths: ["src/foo.ts", "src/bar.ts"],
+        historySource,
+      },
+      REFERENCE_DATE
+    );
+
+    assert.equal(findings.length, 1);
+    assert.deepEqual(findings[0]?.lastTouchDate, daysAgo(5));
+  });
+
+  it("returns one finding per unique touched area", () => {
+    const historySource = createGitHistorySource(repoPath);
+    const findings = analyzeFamiliarity(
+      {
+        author: { name: "Alice Author", email: "alice@example.com" },
+        touchedPaths: ["src/foo.ts", "src/bar.ts", "lib/util.ts"],
+        historySource,
+      },
+      REFERENCE_DATE
+    );
+
+    assert.equal(findings.length, 2);
+    const areas = findings.map((finding) => finding.area).sort();
+    assert.deepEqual(areas, ["lib/", "src/"]);
+  });
+
+  it("returns structured findings with supporting counts per area", () => {
+    const historySource = createGitHistorySource(repoPath);
+    const findings = analyzeFamiliarity(
+      {
+        author: { name: "Alice Author", email: "alice@example.com" },
+        touchedPaths: ["lib/util.ts"],
+        historySource,
+      },
+      REFERENCE_DATE
+    );
+
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.area, "lib/");
+    assert.equal(findings[0]?.authorCommitCount, 1);
+    assert.equal(findings[0]?.totalAreaCommitCount, 2);
+    assert.deepEqual(findings[0]?.lastTouchDate, daysAgo(20));
   });
 });

@@ -40,8 +40,43 @@ export function countAuthorCommitsToFile(
   return stats.authorCommitCount;
 }
 
+/** Map a touched file path to its containing directory area for aggregation. */
+export function touchedAreaForPath(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, "/");
+  const lastSlash = normalized.lastIndexOf("/");
+  if (lastSlash === -1) {
+    return ".";
+  }
+  return normalized.slice(0, lastSlash + 1);
+}
+
+/**
+ * Slice 2: directory-level commit counts and recency per touched area.
+ * Pure — no git shell-out; uses the injected history source.
+ */
 export function analyzeFamiliarity(
-  _input: FamiliarityInput
+  input: FamiliarityInput,
+  asOf: Date = new Date()
 ): FamiliarityFinding[] {
-  throw new Error("analyzeFamiliarity: not yet implemented");
+  const since = historyWindowSince(asOf);
+  const areas = [
+    ...new Set(input.touchedPaths.map((touchedPath) => touchedAreaForPath(touchedPath))),
+  ];
+
+  return areas.map((area) => {
+    const stats = input.historySource.query({
+      authorEmail: input.author.email,
+      path: area,
+      since,
+    });
+
+    return {
+      area,
+      authorCommitCount: stats.authorCommitCount,
+      totalAreaCommitCount: stats.totalCommitCount,
+      lastTouchDate: stats.lastTouchDate,
+      shareOfAreaChurn: 0,
+      characterization: "none" as const,
+    };
+  });
 }
