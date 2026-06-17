@@ -2,6 +2,8 @@
  * Pure: renders a structured evidence report as human-readable text.
  */
 
+import chalk, { Chalk, type ChalkInstance } from "chalk";
+
 import type { BlastRadiusFinding } from "../analyzers/blastRadius.js";
 import type { FamiliarityFinding } from "../analyzers/familiarity.js";
 import type { EvidenceReport } from "./buildEvidenceReport.js";
@@ -11,6 +13,8 @@ export interface RenderReportOptions {
   asOf?: Date;
   /** Max changed files to list before truncating (defaults to 12). */
   maxChangedFilesListed?: number;
+  /** When omitted, auto-detect from TTY and NO_COLOR / FORCE_COLOR. */
+  color?: boolean;
 }
 
 const FAMILIARITY_ORDER: Record<FamiliarityFinding["characterization"], number> =
@@ -28,6 +32,102 @@ const BLAST_RADIUS_ORDER: Record<
   moderate: 1,
   isolated: 2,
 };
+
+interface ReportPalette {
+  title: (text: string) => string;
+  sectionHeader: (text: string) => string;
+  sectionContext: (text: string) => string;
+  metadata: (text: string) => string;
+  filePath: (text: string) => string;
+  limitation: (text: string) => string;
+  familiarityCharacterization: (
+    characterization: FamiliarityFinding["characterization"],
+    text: string
+  ) => string;
+  blastCharacterization: (
+    characterization: BlastRadiusFinding["characterization"],
+    text: string
+  ) => string;
+}
+
+/** Whether to emit ANSI colors (TTY + NO_COLOR / FORCE_COLOR conventions). */
+export function shouldColorizeReport(
+  stdout: { isTTY?: boolean } = process.stdout
+): boolean {
+  const noColor = process.env.NO_COLOR;
+  if (noColor !== undefined && noColor !== "") {
+    return false;
+  }
+
+  const forceColor = process.env.FORCE_COLOR;
+  if (forceColor !== undefined && forceColor !== "") {
+    return true;
+  }
+
+  return stdout.isTTY === true;
+}
+
+function resolveChalkInstance(colorOption: boolean | undefined): ChalkInstance | null {
+  if (colorOption === false) {
+    return null;
+  }
+
+  if (colorOption === true) {
+    return new Chalk({ level: 3 });
+  }
+
+  if (!shouldColorizeReport()) {
+    return null;
+  }
+
+  return chalk;
+}
+
+function createPalette(chalkInstance: ChalkInstance | null): ReportPalette {
+  const plain = (text: string) => text;
+
+  if (chalkInstance === null) {
+    return {
+      title: plain,
+      sectionHeader: plain,
+      sectionContext: plain,
+      metadata: plain,
+      filePath: plain,
+      limitation: plain,
+      familiarityCharacterization: (_characterization, text) => text,
+      blastCharacterization: (_characterization, text) => text,
+    };
+  }
+
+  return {
+    title: (text) => chalkInstance.bold.cyan(text),
+    sectionHeader: (text) => chalkInstance.bold.blue(text),
+    sectionContext: (text) => chalkInstance.dim(text),
+    metadata: (text) => chalkInstance.dim(text),
+    filePath: (text) => chalkInstance.bold(text),
+    limitation: (text) => chalkInstance.dim(text),
+    familiarityCharacterization: (characterization, text) => {
+      switch (characterization) {
+        case "none":
+          return chalkInstance.yellow(text);
+        case "moderate":
+          return chalkInstance.yellow(text);
+        case "high":
+          return chalkInstance.green(text);
+      }
+    },
+    blastCharacterization: (characterization, text) => {
+      switch (characterization) {
+        case "broad":
+          return chalkInstance.red(text);
+        case "moderate":
+          return chalkInstance.yellow(text);
+        case "isolated":
+          return chalkInstance.dim(text);
+      }
+    },
+  };
+}
 
 function formatRelativeAge(date: Date, asOf: Date): string {
   const msPerDay = 24 * 60 * 60 * 1000;
@@ -105,10 +205,17 @@ function formatFamiliarityDetail(
 
 function renderFamiliarityFinding(
   finding: FamiliarityFinding,
-  asOf: Date
+  asOf: Date,
+  palette: ReportPalette
 ): string[] {
+  const fileLabel = palette.filePath(formatFileLabel(finding.touchedFile));
+  const characterization = palette.familiarityCharacterization(
+    finding.characterization,
+    finding.characterization
+  );
+
   return [
-    `  ${formatFileLabel(finding.touchedFile)} — ${finding.characterization}`,
+    `  ${fileLabel} — ${characterization}`,
     `    ${formatFamiliarityDetail(finding, asOf)}`,
   ];
 }
@@ -134,9 +241,18 @@ function formatDependentSample(finding: BlastRadiusFinding): string {
   return `Depended on by ${finding.dependentCount} ${moduleWord}, including ${listed} (and ${moreWord}).`;
 }
 
-function renderBlastRadiusFinding(finding: BlastRadiusFinding): string[] {
+function renderBlastRadiusFinding(
+  finding: BlastRadiusFinding,
+  palette: ReportPalette
+): string[] {
+  const changedFile = palette.filePath(finding.changedFile);
+  const characterization = palette.blastCharacterization(
+    finding.characterization,
+    finding.characterization
+  );
+
   return [
-    `  ${finding.changedFile} — ${finding.characterization}`,
+    `  ${changedFile} — ${characterization}`,
     `    ${formatDependentSample(finding)}`,
   ];
 }
@@ -164,6 +280,7 @@ export function renderReport(
 ): string {
   const asOf = options.asOf ?? new Date();
   const maxChangedFilesListed = options.maxChangedFilesListed ?? 12;
+  const palette = createPalette(resolveChalkInstance(options.color));
 
   const familiarity = [...report.familiarity].sort(
     (a, b) =>
@@ -180,61 +297,75 @@ export function renderReport(
   );
 
   const lines: string[] = [
-    "Evidence Report",
-    "===============",
+    palette.title("Evidence Report"),
+    palette.title("==============="),
     "",
-    `Author: ${report.author.name} <${report.author.email}>`,
+    palette.metadata(`Author: ${report.author.name} <${report.author.email}>`),
   ];
 
   if (report.changeReference !== undefined) {
-    lines.push(`Change: ${report.changeReference}`);
+    lines.push(palette.metadata(`Change: ${report.changeReference}`));
   }
 
   lines.push(
     `Changed files (${report.changedFiles.length}):`,
     ...renderChangedFilesList(report.changedFiles, maxChangedFilesListed),
     "",
-    "Familiarity",
-    "-----------",
-    "  How much the author has worked on each changed file over the last 6 months."
+    palette.sectionHeader("Familiarity"),
+    palette.sectionHeader("-----------"),
+    palette.sectionContext(
+      "  How much the author has worked on each changed file over the last 6 months."
+    )
   );
 
   if (familiarity.length === 0) {
     lines.push("  (no changed files to analyze)");
   } else {
     for (const finding of familiarity) {
-      lines.push(...renderFamiliarityFinding(finding, asOf));
+      lines.push(...renderFamiliarityFinding(finding, asOf, palette));
     }
   }
 
   lines.push(
     "",
-    "Blast Radius",
-    "------------",
-    "  Direct static import and require() dependents of each changed JavaScript or TypeScript source file."
+    palette.sectionHeader("Blast Radius"),
+    palette.sectionHeader("------------"),
+    palette.sectionContext(
+      "  Direct static import and require() dependents of each changed JavaScript or TypeScript source file."
+    )
   );
 
   if (blastRadius.length === 0) {
     lines.push("  (no analyzable JS/TS changed files to analyze)");
   } else {
     for (const finding of blastRadius) {
-      lines.push(...renderBlastRadiusFinding(finding));
+      lines.push(...renderBlastRadiusFinding(finding, palette));
     }
   }
 
   if (report.notAnalyzedForBlastRadius.length > 0) {
-    lines.push("", "Not Analyzed for Blast Radius", "-----------------------------");
     lines.push(
-      "  Blast-radius analysis covers JavaScript/TypeScript source files only."
+      "",
+      palette.sectionHeader("Not Analyzed for Blast Radius"),
+      palette.sectionHeader("-----------------------------")
+    );
+    lines.push(
+      palette.sectionContext(
+        "  Blast-radius analysis covers JavaScript/TypeScript source files only."
+      )
     );
     for (const file of report.notAnalyzedForBlastRadius) {
       lines.push(`  ${file}`);
     }
   }
 
-  lines.push("", "Limitations", "-----------");
+  lines.push(
+    "",
+    palette.sectionHeader("Limitations"),
+    palette.sectionHeader("-----------")
+  );
   for (const limitation of report.limitations) {
-    lines.push(`  - ${limitation}`);
+    lines.push(palette.limitation(`  - ${limitation}`));
   }
 
   return lines.join("\n");

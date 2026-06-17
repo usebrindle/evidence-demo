@@ -4,10 +4,14 @@ import { describe, it } from "node:test";
 import type { BlastRadiusFinding } from "../src/analyzers/blastRadius.js";
 import type { FamiliarityFinding } from "../src/analyzers/familiarity.js";
 import { buildEvidenceReport } from "../src/report/buildEvidenceReport.js";
-import { renderReport } from "../src/report/renderReport.js";
+import {
+  renderReport,
+  shouldColorizeReport,
+} from "../src/report/renderReport.js";
 
 const author = { name: "Ada Lovelace", email: "ada@example.com" };
 const asOf = new Date("2026-06-17T12:00:00Z");
+const plainRenderOptions = { asOf, color: false as const };
 
 const sampleFamiliarity: FamiliarityFinding[] = [
   {
@@ -58,7 +62,7 @@ describe("renderReport", () => {
       blastRadius: [],
     });
 
-    const text = renderReport(report, { asOf });
+    const text = renderReport(report, plainRenderOptions);
 
     assert.match(
       text,
@@ -78,7 +82,7 @@ describe("renderReport", () => {
       blastRadius: sampleBlastRadius,
     });
 
-    const text = renderReport(report, { asOf });
+    const text = renderReport(report, plainRenderOptions);
 
     assert.match(
       text,
@@ -98,7 +102,7 @@ describe("renderReport", () => {
       blastRadius: sampleBlastRadius.slice(0, 1),
     });
 
-    const text = renderReport(report, { asOf });
+    const text = renderReport(report, plainRenderOptions);
 
     assert.match(text, /Limitations\n-----------/);
     for (const limitation of report.limitations) {
@@ -116,7 +120,7 @@ describe("renderReport", () => {
       blastRadius: sampleBlastRadius.slice(0, 1),
     });
 
-    const text = renderReport(report, { asOf });
+    const text = renderReport(report, plainRenderOptions);
 
     assert.match(text, /Not Analyzed for Blast Radius/);
     assert.match(
@@ -137,7 +141,7 @@ describe("renderReport", () => {
       blastRadius: sampleBlastRadius.slice(0, 1),
     });
 
-    const text = renderReport(report, { asOf });
+    const text = renderReport(report, plainRenderOptions);
 
     assert.match(text, /^Evidence Report\n={15}/);
     assert.match(text, /Author: Ada Lovelace <ada@example\.com>/);
@@ -174,7 +178,7 @@ describe("renderReport", () => {
       blastRadius: [],
     });
 
-    const text = renderReport(report, { asOf });
+    const text = renderReport(report, plainRenderOptions);
 
     assert.match(
       text,
@@ -190,13 +194,78 @@ describe("renderReport", () => {
       blastRadius: sampleBlastRadius,
     });
 
-    const text = renderReport(report, { asOf });
+    const text = renderReport(report, plainRenderOptions);
     const familiaritySection = text.split("Blast Radius")[0] ?? "";
     const blastSection =
       text.split("Blast Radius")[1]?.split("Limitations")[0] ?? "";
 
     assert.ok(familiaritySection.indexOf("docs/guide.md — none") < familiaritySection.indexOf("src/util.ts — moderate"));
     assert.ok(blastSection.indexOf("src/util.ts — broad") < blastSection.indexOf("src/isolated.ts — isolated"));
+  });
+
+  it("contains no ANSI escape codes when color is false", () => {
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["src/util.ts"],
+      familiarity: sampleFamiliarity.slice(0, 1),
+      blastRadius: sampleBlastRadius.slice(0, 1),
+    });
+
+    const text = renderReport(report, plainRenderOptions);
+
+    assert.doesNotMatch(text, /\u001b\[/);
+  });
+
+  it("emits ANSI escape codes when color is true", () => {
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["src/util.ts"],
+      familiarity: sampleFamiliarity.slice(0, 1),
+      blastRadius: sampleBlastRadius.slice(0, 1),
+    });
+
+    const text = renderReport(report, { asOf, color: true });
+
+    assert.match(text, /\u001b\[/);
+    assert.match(text, /Evidence Report/);
+    assert.match(text, /\x1B\[1msrc\/util\.ts\x1B\[22m — \x1B\[31mbroad\x1B\[39m/);
+  });
+});
+
+describe("shouldColorizeReport", () => {
+  it("returns false when NO_COLOR is set", () => {
+    const previous = process.env.NO_COLOR;
+    process.env.NO_COLOR = "1";
+    try {
+      assert.equal(shouldColorizeReport({ isTTY: true }), false);
+    } finally {
+      if (previous === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = previous;
+      }
+    }
+  });
+
+  it("returns true when FORCE_COLOR is set on a non-TTY stream", () => {
+    const previousNoColor = process.env.NO_COLOR;
+    const previousForceColor = process.env.FORCE_COLOR;
+    delete process.env.NO_COLOR;
+    process.env.FORCE_COLOR = "1";
+    try {
+      assert.equal(shouldColorizeReport({ isTTY: false }), true);
+    } finally {
+      if (previousNoColor === undefined) {
+        delete process.env.NO_COLOR;
+      } else {
+        process.env.NO_COLOR = previousNoColor;
+      }
+      if (previousForceColor === undefined) {
+        delete process.env.FORCE_COLOR;
+      } else {
+        process.env.FORCE_COLOR = previousForceColor;
+      }
+    }
   });
 });
 
