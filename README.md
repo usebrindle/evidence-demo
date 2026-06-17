@@ -58,11 +58,6 @@ npm run build
 ```
 evidence-demo/     CLI package (analyzers, inputs, report, tests)
 docs/design/       Low-level design docs (LLDs) for the experiment
-ralph/             PRD (prd.json), progress log, Ralph run state
-tasks/             Human-readable PRD source
-ralph.sh           Autonomous agent loop (Cursor CLI)
-AGENTS.md          Agent instructions for Ralph iterations
-.cursor/skills/    Cursor skills for PRD and Ralph workflows
 ```
 
 ## Design docs
@@ -82,10 +77,6 @@ Documented in report output and VALIDATION.md. Notable gaps deferred to product 
 - Three additional evidence items not yet implemented
 
 **Familiarity** is the strongest signal today. **Blast radius** is credible on simple single-package layouts.
-
-## Ralph (autonomous build loop)
-
-This repo was built incrementally via [Ralph](https://ghuntley.com/ralph/) using `ralph/prd.json` and `./ralph.sh`. See `AGENTS.md` and `.cursor/skills/` for PRD and conversion workflows.
 
 ## Privacy
 

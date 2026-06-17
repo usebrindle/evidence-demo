@@ -1,2 +1,7 @@
 node_modules/
 dist/
+
+# Ralph ephemeral state (harness stays in repo; run logs do not)
+ralph/progress.txt
+ralph/.last-branch
+ralph/archive/
