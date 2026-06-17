@@ -15,6 +15,7 @@
 - `createImportGraph(repoPath)` in `importGraphSource.ts` walks `.ts`/`.tsx` files (skips `node_modules`, `dist`, etc.), parses imports via the TypeScript AST, resolves relative specifiers (extensionless + index files) and tsconfig/jsconfig `paths` aliases via `ts.resolveModuleName`, and returns reverse-dependency map `ImportGraph` (target → sorted importer paths)
 - Pure blast-radius analyzer in `src/analyzers/blastRadius.ts` injects `ImportGraph`; `countDirectImportersForFile` is Slice 1 (single-file dependent count + paths); `analyzeBlastRadius` is Slice 2 (US-009): `characterizeBlastRadius` labels isolated (0-2), moderate (3-10), broad (11+); `sampleDependents` caps named dependents at `DEPENDENT_SAMPLE_SIZE` (5) while `dependentCount` keeps the full total; skips non-TS changed files
 - Pure report assembly in `src/report/buildEvidenceReport.ts`: `buildEvidenceReport({ author, changedFiles, familiarity, blastRadius })` → `EvidenceReport` with full finding objects, `notAnalyzedForBlastRadius` for non-TS changed files, and a fixed `limitations` list (no risk score or merge recommendation)
+- Pure report rendering in `src/report/renderReport.ts`: `renderReport(report, { asOf? })` → terminal text with familiarity numbers (author commits, recency, others' commits, share), blast-radius counts with sampled dependents, non-TS `notAnalyzedForBlastRadius` section with TS-only note, and limitations; pass `asOf` for deterministic relative dates in tests
 
 ---
 ## Wed, Jun 17, 2026 - US-001
@@ -148,5 +149,16 @@
 - **Learnings for future iterations:**
   - `buildEvidenceReport.ts` was scaffolded in US-001; US-011 adds test coverage and marks the story complete
   - `notAnalyzedForBlastRadius` lists non-TypeScript changed files only; TS files are expected in `blastRadius` from `analyzeBlastRadius`
+  - Manual browser verification not needed (no UI changes)
+---
+## Wed, Jun 17, 2026 - US-012
+- Implemented pure `renderReport`: structured `EvidenceReport` → human-readable terminal text with supporting numbers
+- Familiarity lines show author commits, share, recency, and others' commits in the 6-month window; blast-radius lines show importer counts with sampled dependents and overflow count
+- Non-TypeScript changed files listed under "Not Analyzed for Blast Radius" with a TS-only note; limitations section echoes `buildEvidenceReport` honesty list
+- Added 5 unit tests in `renderReport.test.ts`; optional `asOf` option keeps relative recency deterministic in tests
+- Files changed: `evidence-demo/src/report/renderReport.ts`, `evidence-demo/test/renderReport.test.ts`, `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Pass `{ asOf }` to `renderReport` in tests the same way analyzers use `asOf` for recency
+  - Limitations text mentions "risk score" as a negation; tests should assert absence of verdict lines, not the word in limitations
   - Manual browser verification not needed (no UI changes)
 ---
