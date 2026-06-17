@@ -44,3 +44,12 @@
   - Use fixed `REFERENCE_DATE` plus `daysAgo()` in tests to control commit dates relative to the history window
   - Manual browser verification not needed (no UI changes)
 ---
+## Wed, Jun 17, 2026 - US-002 (verification)
+- Verified existing `resolveChangedFiles` implementation meets all acceptance criteria; prior commit `5b89305` had not updated `prd.json`
+- Confirmed support for `base...head` ranges, branch names, and local PR refs; returns changed files and head author name/email
+- `npm run typecheck` and `npm run test` pass (4 changedFiles integration tests)
+- Files changed: `ralph/prd.json`, `ralph/progress.txt`
+- **Learnings for future iterations:**
+  - Always set `passes: true` in `ralph/prd.json` in the same commit as the story implementation
+  - Manual browser verification not needed (no UI changes)
+---
