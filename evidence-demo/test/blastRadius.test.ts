@@ -8,6 +8,7 @@ import {
   analyzeBlastRadius,
   characterizeBlastRadius,
   countDirectImportersForFile,
+  countTransitiveReachForFile,
   DEPENDENT_SAMPLE_SIZE,
   sampleDependents,
 } from "../src/analyzers/blastRadius.js";
@@ -134,6 +135,70 @@ describe("countDirectImportersForFile integration", () => {
 
     assert.equal(result.dependentCount, 0);
     assert.deepEqual(result.dependents, []);
+  });
+});
+
+describe("countTransitiveReachForFile", () => {
+  it("returns zero transitive reach for an isolated file with no importers", () => {
+    const graph = new Map([
+      ["src/util.ts", ["src/a.ts", "src/b.ts"]],
+    ]);
+
+    const result = countTransitiveReachForFile("src/helper.ts", graph);
+
+    assert.equal(result.transitiveReachCount, 0);
+  });
+
+  it("returns transitive reach equal to direct count for a hub with only direct importers", () => {
+    const importers = Array.from({ length: 12 }, (_, index) => `src/m${index}.ts`);
+    const graph = new Map([["src/hub.ts", importers]]);
+
+    const direct = countDirectImportersForFile("src/hub.ts", graph);
+    const transitive = countTransitiveReachForFile("src/hub.ts", graph);
+
+    assert.equal(direct.dependentCount, 12);
+    assert.equal(transitive.transitiveReachCount, 12);
+    assert.equal(transitive.transitiveReachCount, direct.dependentCount);
+  });
+
+  it("counts all ancestors on a deep chain where direct count is 1", () => {
+    const pageCount = 5;
+    const pages = Array.from(
+      { length: pageCount },
+      (_, index) => `src/pages/page${index}.tsx`
+    );
+    const graph = new Map<string, readonly string[]>([
+      ["src/input.ts", ["src/form.ts"]],
+      ["src/form.ts", ["src/header.ts"]],
+      ["src/header.ts", pages],
+    ]);
+
+    const direct = countDirectImportersForFile("src/input.ts", graph);
+    const transitive = countTransitiveReachForFile("src/input.ts", graph);
+
+    assert.equal(direct.dependentCount, 1);
+    assert.equal(transitive.transitiveReachCount, pageCount + 2);
+  });
+
+  it("counts each ancestor once when the reverse graph contains a cycle", () => {
+    const graph = new Map<string, readonly string[]>([
+      ["src/leaf.ts", ["src/a.ts"]],
+      ["src/a.ts", ["src/c.ts"]],
+      ["src/b.ts", ["src/a.ts"]],
+      ["src/c.ts", ["src/b.ts"]],
+    ]);
+
+    const result = countTransitiveReachForFile("src/leaf.ts", graph);
+
+    assert.equal(result.transitiveReachCount, 3);
+  });
+
+  it("normalizes Windows-style path separators", () => {
+    const graph = new Map([["src/util.ts", ["src/a.ts", "src/b.ts"]]]);
+
+    const result = countTransitiveReachForFile("src\\util.ts", graph);
+
+    assert.equal(result.transitiveReachCount, 2);
   });
 });
 

@@ -27,6 +27,10 @@ export interface DirectImporterResult {
   dependents: readonly string[];
 }
 
+export interface TransitiveReachResult {
+  transitiveReachCount: number;
+}
+
 /**
  * Slice 1: count direct dependents of one changed JS/TS source file.
  * Includes edges from static ESM imports and static-literal require().
@@ -43,6 +47,38 @@ export function countDirectImportersForFile(
     dependentCount: dependents.length,
     dependents,
   };
+}
+
+/**
+ * Slice 5: count all unique ancestor modules that depend on a changed file,
+ * walking upward through the reverse-dependency graph (direct importers and
+ * their importers). Excludes the changed file from the count.
+ */
+export function countTransitiveReachForFile(
+  changedFile: string,
+  importGraph: ImportGraph
+): TransitiveReachResult {
+  const normalized = changedFile.replace(/\\/g, "/");
+  const visited = new Set<string>();
+  const queue: string[] = [...(importGraph.get(normalized) ?? [])];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+
+    if (current === normalized || visited.has(current)) {
+      continue;
+    }
+
+    visited.add(current);
+
+    for (const importer of importGraph.get(current) ?? []) {
+      if (importer !== normalized && !visited.has(importer)) {
+        queue.push(importer);
+      }
+    }
+  }
+
+  return { transitiveReachCount: visited.size };
 }
 
 /** Max dependent paths included in a finding; full count stays in dependentCount. */
