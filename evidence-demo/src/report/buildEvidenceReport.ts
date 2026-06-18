@@ -4,7 +4,7 @@
 
 import type { FamiliarityFinding } from "../analyzers/familiarity.js";
 import type { BlastRadiusFinding } from "../analyzers/blastRadius.js";
-import type { AuthorIdentity } from "../inputs/changedFiles.js";
+import type { AuthorIdentity, ChangedFileEntry } from "../inputs/changedFiles.js";
 import { isAnalyzableSourceFile } from "../inputs/importGraphSource.js";
 
 export interface EvidenceReport {
@@ -21,7 +21,7 @@ export interface EvidenceReport {
 export interface BuildEvidenceReportInput {
   author: AuthorIdentity;
   changeReference?: string;
-  changedFiles: readonly string[];
+  changedFiles: readonly ChangedFileEntry[];
   familiarity: readonly FamiliarityFinding[];
   blastRadius: readonly BlastRadiusFinding[];
 }
@@ -29,15 +29,16 @@ export interface BuildEvidenceReportInput {
 export function buildEvidenceReport(
   input: BuildEvidenceReportInput
 ): EvidenceReport {
+  const changedFilePaths = input.changedFiles.map((entry) => entry.path);
   const analyzedFiles = new Set(input.blastRadius.map((f) => f.changedFile));
-  const notAnalyzedForBlastRadius = input.changedFiles.filter(
+  const notAnalyzedForBlastRadius = changedFilePaths.filter(
     (file) => !isAnalyzableSourceFile(file) && !analyzedFiles.has(file)
   );
 
   return {
     author: input.author,
     changeReference: input.changeReference,
-    changedFiles: input.changedFiles,
+    changedFiles: changedFilePaths,
     familiarity: input.familiarity,
     blastRadius: input.blastRadius,
     notAnalyzedForBlastRadius,

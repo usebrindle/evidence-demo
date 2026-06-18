@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import type { BlastRadiusFinding } from "../src/analyzers/blastRadius.js";
 import type { FamiliarityFinding } from "../src/analyzers/familiarity.js";
+import type { ChangedFileEntry } from "../src/inputs/changedFiles.js";
 import { buildEvidenceReport } from "../src/report/buildEvidenceReport.js";
 import {
   renderReport,
@@ -12,6 +13,13 @@ import {
 const author = { name: "Ada Lovelace", email: "ada@example.com" };
 const asOf = new Date("2026-06-17T12:00:00Z");
 const plainRenderOptions = { asOf, color: false as const };
+
+function changedEntry(
+  path: string,
+  changeKind: ChangedFileEntry["changeKind"] = "modified"
+): ChangedFileEntry {
+  return { path, changeKind };
+}
 
 const sampleFamiliarity: FamiliarityFinding[] = [
   {
@@ -71,7 +79,7 @@ describe("renderReport", () => {
   it("leads familiarity detail with line ownership when blame stats are available", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/owned.ts"],
+      changedFiles: [changedEntry("src/owned.ts")],
       familiarity: [
         {
           touchedFile: "src/owned.ts",
@@ -102,7 +110,7 @@ describe("renderReport", () => {
   it("falls back to commit-only phrasing when blameable lines are zero", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["assets/logo.png"],
+      changedFiles: [changedEntry("assets/logo.png")],
       familiarity: [
         {
           touchedFile: "assets/logo.png",
@@ -132,7 +140,7 @@ describe("renderReport", () => {
   it("renders familiarity with supporting numbers, not just labels", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/util.ts", "docs/guide.md"],
+      changedFiles: [changedEntry("src/util.ts"), changedEntry("docs/guide.md")],
       familiarity: sampleFamiliarity,
       blastRadius: [],
     });
@@ -152,7 +160,7 @@ describe("renderReport", () => {
   it("renders blast radius with counts and sample dependents", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/util.ts", "src/isolated.ts"],
+      changedFiles: [changedEntry("src/util.ts"), changedEntry("src/isolated.ts")],
       familiarity: [],
       blastRadius: sampleBlastRadius,
     });
@@ -180,7 +188,7 @@ describe("renderReport", () => {
 
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/input.ts"],
+      changedFiles: [changedEntry("src/input.ts")],
       familiarity: [],
       blastRadius: [divergentFinding],
     });
@@ -196,7 +204,7 @@ describe("renderReport", () => {
   it("includes an honest limitations section", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/util.ts"],
+      changedFiles: [changedEntry("src/util.ts")],
       familiarity: sampleFamiliarity.slice(0, 1),
       blastRadius: sampleBlastRadius.slice(0, 1),
     });
@@ -214,7 +222,11 @@ describe("renderReport", () => {
   it("lists non-analyzable changed files with a JS/TS-only note", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/util.ts", "README.md", "package.json"],
+      changedFiles: [
+        changedEntry("src/util.ts"),
+        changedEntry("README.md"),
+        changedEntry("package.json"),
+      ],
       familiarity: sampleFamiliarity,
       blastRadius: sampleBlastRadius.slice(0, 1),
     });
@@ -235,7 +247,7 @@ describe("renderReport", () => {
     const report = buildEvidenceReport({
       author,
       changeReference: "42",
-      changedFiles: ["src/util.ts"],
+      changedFiles: [changedEntry("src/util.ts")],
       familiarity: sampleFamiliarity.slice(0, 1),
       blastRadius: sampleBlastRadius.slice(0, 1),
     });
@@ -263,7 +275,7 @@ describe("renderReport", () => {
   it("labels repository-root files clearly", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["package.json"],
+      changedFiles: [changedEntry("package.json")],
       familiarity: [
         {
           touchedFile: "package.json",
@@ -294,7 +306,11 @@ describe("renderReport", () => {
   it("sorts unfamiliar areas before familiar ones and broad blast radius first", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/util.ts", "src/isolated.ts", "docs/guide.md"],
+      changedFiles: [
+        changedEntry("src/util.ts"),
+        changedEntry("src/isolated.ts"),
+        changedEntry("docs/guide.md"),
+      ],
       familiarity: sampleFamiliarity,
       blastRadius: [
         ...sampleBlastRadius,
@@ -321,7 +337,7 @@ describe("renderReport", () => {
   it("contains no ANSI escape codes when color is false", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/util.ts"],
+      changedFiles: [changedEntry("src/util.ts")],
       familiarity: sampleFamiliarity.slice(0, 1),
       blastRadius: sampleBlastRadius.slice(0, 1),
     });
@@ -334,7 +350,7 @@ describe("renderReport", () => {
   it("emits ANSI escape codes when color is true", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/util.ts"],
+      changedFiles: [changedEntry("src/util.ts")],
       familiarity: sampleFamiliarity.slice(0, 1),
       blastRadius: sampleBlastRadius.slice(0, 1),
     });

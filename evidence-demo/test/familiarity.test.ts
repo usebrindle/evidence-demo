@@ -15,9 +15,17 @@ import {
 } from "../src/analyzers/familiarity.js";
 import type { GitBlameSource } from "../src/inputs/gitBlameSource.js";
 import { createGitBlameSource } from "../src/inputs/gitBlameSource.js";
+import type { ChangedFileEntry } from "../src/inputs/changedFiles.js";
 import { createGitHistorySource } from "../src/inputs/gitHistorySource.js";
 
 const REFERENCE_DATE = new Date("2026-06-17T12:00:00Z");
+
+function changedEntry(
+  path: string,
+  changeKind: ChangedFileEntry["changeKind"] = "modified"
+): ChangedFileEntry {
+  return { path, changeKind };
+}
 
 /** Injectable blame source returning zero line stats for commit-only pure tests. */
 function createZeroBlameSource(): GitBlameSource {
@@ -282,7 +290,7 @@ describe("analyzeFamiliarity", () => {
     const findings = analyzeFamiliarity(
       {
         author: { name: "Alice Author", email: "alice@example.com" },
-        touchedPaths: ["src/foo.ts"],
+        changedFiles: [changedEntry("src/foo.ts")],
         historySource,
         blameSource: createZeroBlameSource(),
         baseRevision: "HEAD",
@@ -301,7 +309,7 @@ describe("analyzeFamiliarity", () => {
     const findings = analyzeFamiliarity(
       {
         author: { name: "Alice Author", email: "alice@example.com" },
-        touchedPaths: ["src/foo.ts", "src/bar.ts"],
+        changedFiles: [changedEntry("src/foo.ts"), changedEntry("src/bar.ts")],
         historySource,
         blameSource: createZeroBlameSource(),
         baseRevision: "HEAD",
@@ -321,7 +329,11 @@ describe("analyzeFamiliarity", () => {
     const findings = analyzeFamiliarity(
       {
         author: { name: "Alice Author", email: "alice@example.com" },
-        touchedPaths: ["src/foo.ts", "src/bar.ts", "lib/util.ts"],
+        changedFiles: [
+          changedEntry("src/foo.ts"),
+          changedEntry("src/bar.ts"),
+          changedEntry("lib/util.ts"),
+        ],
         historySource,
         blameSource: createZeroBlameSource(),
         baseRevision: "HEAD",
@@ -339,7 +351,7 @@ describe("analyzeFamiliarity", () => {
     const findings = analyzeFamiliarity(
       {
         author: { name: "Alice Author", email: "alice@example.com" },
-        touchedPaths: ["lib/util.ts"],
+        changedFiles: [changedEntry("lib/util.ts")],
         historySource,
         blameSource: createZeroBlameSource(),
         baseRevision: "HEAD",
@@ -553,7 +565,7 @@ describe("analyzeFamiliarity characterization", () => {
     const findings = analyzeFamiliarity(
       {
         author: { name: "Alice Author", email: "alice@example.com" },
-        touchedPaths: ["src/foo.ts"],
+        changedFiles: [changedEntry("src/foo.ts")],
         historySource,
         blameSource: createZeroBlameSource(),
         baseRevision: "HEAD",
@@ -573,7 +585,7 @@ describe("analyzeFamiliarity characterization", () => {
     const findings = analyzeFamiliarity(
       {
         author: { name: "Alice Author", email: "alice@example.com" },
-        touchedPaths: ["lib/util.ts"],
+        changedFiles: [changedEntry("lib/util.ts")],
         historySource,
         blameSource: createZeroBlameSource(),
         baseRevision: "HEAD",
@@ -594,7 +606,7 @@ describe("analyzeFamiliarity characterization", () => {
     const findings = analyzeFamiliarity(
       {
         author: { name: "Charlie Coder", email: "charlie@example.com" },
-        touchedPaths: ["src/foo.ts"],
+        changedFiles: [changedEntry("src/foo.ts")],
         historySource,
         blameSource: createZeroBlameSource(),
         baseRevision: "HEAD",
@@ -688,7 +700,7 @@ describe("analyzeFamiliarity with git blame integration", () => {
     const findings = analyzeFamiliarity(
       {
         author: { name: "Alice Author", email: "alice@example.com" },
-        touchedPaths: ["src/rewrite.ts"],
+        changedFiles: [changedEntry("src/rewrite.ts")],
         historySource,
         blameSource,
         baseRevision,
@@ -711,7 +723,7 @@ describe("analyzeFamiliarity with git blame integration", () => {
     const findings = analyzeFamiliarity(
       {
         author: { name: "Alice Author", email: "alice@example.com" },
-        touchedPaths: ["src/rewrite.ts"],
+        changedFiles: [changedEntry("src/rewrite.ts")],
         historySource,
         blameSource,
         baseRevision,
@@ -729,7 +741,10 @@ describe("analyzeFamiliarity with git blame integration", () => {
     const findings = analyzeFamiliarity(
       {
         author: { name: "Alice Author", email: "alice@example.com" },
-        touchedPaths: ["src/rewrite.ts", "src/rewrite.ts"],
+        changedFiles: [
+          changedEntry("src/rewrite.ts"),
+          changedEntry("src/rewrite.ts"),
+        ],
         historySource,
         blameSource,
         baseRevision,

@@ -3,12 +3,20 @@ import { describe, it } from "node:test";
 
 import type { BlastRadiusFinding } from "../src/analyzers/blastRadius.js";
 import type { FamiliarityFinding } from "../src/analyzers/familiarity.js";
+import type { ChangedFileEntry } from "../src/inputs/changedFiles.js";
 import {
   buildEvidenceReport,
   type EvidenceReport,
 } from "../src/report/buildEvidenceReport.js";
 
 const author = { name: "Ada Lovelace", email: "ada@example.com" };
+
+function changedEntry(
+  path: string,
+  changeKind: ChangedFileEntry["changeKind"] = "modified"
+): ChangedFileEntry {
+  return { path, changeKind };
+}
 
 const sampleFamiliarity: FamiliarityFinding[] = [
   {
@@ -60,7 +68,7 @@ function assertNoRiskScore(report: EvidenceReport): void {
 
 describe("buildEvidenceReport", () => {
   it("assembles analyzer findings into a structured report", () => {
-    const changedFiles = ["src/util.ts", "README.md"];
+    const changedFiles = [changedEntry("src/util.ts"), changedEntry("README.md")];
 
     const report = buildEvidenceReport({
       author,
@@ -70,7 +78,7 @@ describe("buildEvidenceReport", () => {
     });
 
     assert.deepEqual(report.author, author);
-    assert.deepEqual(report.changedFiles, changedFiles);
+    assert.deepEqual(report.changedFiles, ["src/util.ts", "README.md"]);
     assert.deepEqual(report.familiarity, sampleFamiliarity);
     assert.deepEqual(report.blastRadius, sampleBlastRadius);
     assertNoRiskScore(report);
@@ -79,7 +87,7 @@ describe("buildEvidenceReport", () => {
   it("retains supporting numbers on familiarity findings, not just labels", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/util.ts"],
+      changedFiles: [changedEntry("src/util.ts")],
       familiarity: sampleFamiliarity,
       blastRadius: [],
     });
@@ -99,7 +107,7 @@ describe("buildEvidenceReport", () => {
   it("retains direct dependent count and named direct dependents on blast-radius findings", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/util.ts"],
+      changedFiles: [changedEntry("src/util.ts")],
       familiarity: [],
       blastRadius: sampleBlastRadius,
     });
@@ -115,7 +123,11 @@ describe("buildEvidenceReport", () => {
   it("lists non-analyzable changed files under not analyzed for blast radius", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/util.ts", "README.md", "package.json"],
+      changedFiles: [
+        changedEntry("src/util.ts"),
+        changedEntry("README.md"),
+        changedEntry("package.json"),
+      ],
       familiarity: sampleFamiliarity,
       blastRadius: sampleBlastRadius,
     });
@@ -129,7 +141,7 @@ describe("buildEvidenceReport", () => {
   it("does not list analyzable JS/TS files in not analyzed when they have blast-radius findings", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/util.ts", "src/other.ts"],
+      changedFiles: [changedEntry("src/util.ts"), changedEntry("src/other.ts")],
       familiarity: [],
       blastRadius: sampleBlastRadius,
     });
@@ -150,7 +162,7 @@ describe("buildEvidenceReport", () => {
 
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/util.js", "README.md"],
+      changedFiles: [changedEntry("src/util.js"), changedEntry("README.md")],
       familiarity: [],
       blastRadius: jsBlastRadius,
     });
@@ -169,7 +181,7 @@ describe("buildEvidenceReport", () => {
   it("states explicit limitations and omits a risk score or merge recommendation", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/util.ts"],
+      changedFiles: [changedEntry("src/util.ts")],
       familiarity: sampleFamiliarity,
       blastRadius: sampleBlastRadius,
     });
@@ -210,7 +222,7 @@ describe("buildEvidenceReport", () => {
   it("states blame-based familiarity limitations and merged git-history caveats", () => {
     const report = buildEvidenceReport({
       author,
-      changedFiles: ["src/util.ts"],
+      changedFiles: [changedEntry("src/util.ts")],
       familiarity: sampleFamiliarity,
       blastRadius: sampleBlastRadius,
     });
@@ -256,11 +268,25 @@ describe("buildEvidenceReport", () => {
     );
   });
 
+  it("derives display paths from changed file entries regardless of change kind", () => {
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: [
+        changedEntry("src/new.ts", "added"),
+        changedEntry("src/existing.ts", "modified"),
+      ],
+      familiarity: [],
+      blastRadius: [],
+    });
+
+    assert.deepEqual(report.changedFiles, ["src/new.ts", "src/existing.ts"]);
+  });
+
   it("passes through changeReference when provided", () => {
     const report = buildEvidenceReport({
       author,
       changeReference: "6098",
-      changedFiles: ["src/util.ts"],
+      changedFiles: [changedEntry("src/util.ts")],
       familiarity: [],
       blastRadius: [],
     });

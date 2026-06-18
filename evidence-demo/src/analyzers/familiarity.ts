@@ -3,7 +3,7 @@
  * Inputs: author identity, touched paths, and a history source.
  */
 
-import type { AuthorIdentity } from "../inputs/changedFiles.js";
+import type { AuthorIdentity, ChangedFileEntry } from "../inputs/changedFiles.js";
 import type { GitBlameSource } from "../inputs/gitBlameSource.js";
 import type { GitHistorySource } from "../inputs/gitHistorySource.js";
 import { historyWindowSince } from "../inputs/gitHistorySource.js";
@@ -25,7 +25,7 @@ export interface FamiliarityFinding {
 
 export interface FamiliarityInput {
   author: AuthorIdentity;
-  touchedPaths: readonly string[];
+  changedFiles: readonly ChangedFileEntry[];
   historySource: GitHistorySource;
   blameSource: GitBlameSource;
   /** Merge-base (or explicit range base) — measurement stop point for blame and history. */
@@ -154,9 +154,16 @@ export function analyzeFamiliarity(
   asOf: Date = new Date()
 ): FamiliarityFinding[] {
   const since = historyWindowSince(asOf);
-  const touchedFiles = [...new Set(input.touchedPaths)];
+  const seenPaths = new Set<string>();
+  const uniqueEntries = input.changedFiles.filter((entry) => {
+    if (seenPaths.has(entry.path)) {
+      return false;
+    }
+    seenPaths.add(entry.path);
+    return true;
+  });
 
-  return touchedFiles.map((touchedFile) => {
+  return uniqueEntries.map(({ path: touchedFile }) => {
     const stats = input.historySource.query({
       authorEmail: input.author.email,
       path: touchedFile,
