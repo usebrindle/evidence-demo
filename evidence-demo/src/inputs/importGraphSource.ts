@@ -6,6 +6,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import postcss from "postcss";
+import postcssScss from "postcss-scss";
 import ts from "typescript";
 
 export type ImportGraph = ReadonlyMap<string, readonly string[]>;
@@ -318,20 +319,34 @@ function extractStaticQuotedPathFromImportParams(params: string): string | null 
   return null;
 }
 
-function extractStylesheetImportSpecifiers(
+function extractStaticQuotedStylesheetSpecifier(params: string): string | null {
+  return extractStaticQuotedPathFromImportParams(params);
+}
+
+function extractStylesheetAtRuleSpecifiers(
   sourceText: string,
-  filePath: string
+  filePath: string,
+  parseStylesheet: (source: string, opts?: { from?: string }) => postcss.Root,
+  includeScssModuleRules: boolean
 ): string[] {
   try {
-    const root = postcss.parse(sourceText, { from: filePath });
+    const root = parseStylesheet(sourceText, { from: filePath });
     const specifiers: string[] = [];
 
-    root.walkAtRules("import", (rule) => {
-      const specifier = extractStaticQuotedPathFromImportParams(rule.params);
-      if (specifier !== null) {
-        specifiers.push(specifier);
-      }
-    });
+    const walkRule = (ruleName: string): void => {
+      root.walkAtRules(ruleName, (rule) => {
+        const specifier = extractStaticQuotedStylesheetSpecifier(rule.params);
+        if (specifier !== null) {
+          specifiers.push(specifier);
+        }
+      });
+    };
+
+    walkRule("import");
+    if (includeScssModuleRules) {
+      walkRule("use");
+      walkRule("forward");
+    }
 
     return specifiers;
   } catch {
@@ -339,20 +354,44 @@ function extractStylesheetImportSpecifiers(
   }
 }
 
+function extractCssStylesheetSpecifiers(
+  sourceText: string,
+  filePath: string
+): string[] {
+  return extractStylesheetAtRuleSpecifiers(
+    sourceText,
+    filePath,
+    postcss.parse,
+    false
+  );
+}
+
+function extractScssStylesheetSpecifiers(
+  sourceText: string,
+  filePath: string
+): string[] {
+  return extractStylesheetAtRuleSpecifiers(
+    sourceText,
+    filePath,
+    postcssScss.parse,
+    true
+  );
+}
+
 function resolveStylesheetModule(
   repoPath: string,
   importerRelativePath: string,
   specifier: string
 ): string | null {
-  if (specifier.startsWith(".")) {
-    return resolveRelativeStylesheetModule(
-      repoPath,
-      importerRelativePath,
-      specifier
-    );
+  if (specifier.startsWith("sass:")) {
+    return null;
   }
 
-  return null;
+  return resolveRelativeStylesheetModule(
+    repoPath,
+    importerRelativePath,
+    specifier
+  );
 }
 
 function addImporterEdge(
@@ -376,12 +415,12 @@ export function createImportGraph(repoPath: string): ImportGraph {
     const sourceText = readFileSync(fullPath, "utf8");
 
     if (isStylesheetFile(file)) {
-      if (!file.endsWith(".css")) {
-        // SCSS @use/@forward parsing added in US-003
-        continue;
-      }
+      const specifiers = file.endsWith(".scss")
+        ? extractScssStylesheetSpecifiers(sourceText, file)
+        : file.endsWith(".css")
+          ? extractCssStylesheetSpecifiers(sourceText, file)
+          : [];
 
-      const specifiers = extractStylesheetImportSpecifiers(sourceText, file);
       for (const specifier of specifiers) {
         const target = resolveStylesheetModule(resolvedRepo, file, specifier);
         if (target === null) {

@@ -555,3 +555,123 @@ describe("createImportGraph CSS @import", () => {
     });
   });
 });
+
+describe("createImportGraph SCSS @use and @forward", () => {
+  describe("theme @use and main @forward", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-scss-use-forward-")
+      );
+
+      writeRepoFile(repoPath, "styles/tokens.scss", "$spacing: 8px;\n");
+      writeRepoFile(
+        repoPath,
+        "styles/theme.scss",
+        "@use 'tokens';\n\n.theme { padding: $spacing; }\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "styles/main.scss",
+        "@forward './theme';\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "src/util.ts",
+        "export const util = 1;\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "src/app.ts",
+        "import { util } from './util';\nexport const app = util;\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("creates reverse edge from tokens.scss to theme.scss for @use 'tokens'", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/tokens.scss"), ["styles/theme.scss"]);
+    });
+
+    it("creates reverse edge from theme.scss to main.scss for @forward './theme'", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/theme.scss"), ["styles/main.scss"]);
+    });
+
+    it("merges SCSS edges into the same graph as JS/TS edges", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("src/util.ts"), ["src/app.ts"]);
+      assert.deepEqual(graph.get("styles/tokens.scss"), ["styles/theme.scss"]);
+      assert.deepEqual(graph.get("styles/theme.scss"), ["styles/main.scss"]);
+    });
+  });
+
+  describe("@use with namespace and @forward with show", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(
+          os.tmpdir(),
+          "evidence-demo-import-graph-scss-use-forward-params-"
+        )
+      );
+
+      writeRepoFile(repoPath, "styles/mixins.scss", "@mixin flex { display: flex; }\n");
+      writeRepoFile(
+        repoPath,
+        "styles/components.scss",
+        "@use './mixins' as m;\n\n.card { @include m.flex; }\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "styles/index.scss",
+        "@forward './components' show flex;\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("extracts static quoted specifiers from @use and @forward with trailing params", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/mixins.scss"), ["styles/components.scss"]);
+      assert.deepEqual(graph.get("styles/components.scss"), ["styles/index.scss"]);
+    });
+  });
+
+  describe("built-in sass modules", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-scss-sass-builtin-")
+      );
+
+      writeRepoFile(
+        repoPath,
+        "styles/theme.scss",
+        "@use 'sass:color';\n@use 'sass:math';\n\n.theme { color: sass:color.adjust(blue, $lightness: 10%); }\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("does not create graph edges for built-in sass:* modules", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.equal(graph.size, 0);
+    });
+  });
+});
