@@ -447,6 +447,86 @@ describe("runEvidenceDemo", () => {
     }
   });
 
+  it("shows high familiarity for single-rewrite when line ownership outweighs one commit", () => {
+    const rewriteRepo = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-single-rewrite-e2e-")
+    );
+    try {
+      git(rewriteRepo, ["init"]);
+      git(rewriteRepo, ["config", "user.name", "Setup"]);
+      git(rewriteRepo, ["config", "user.email", "setup@example.com"]);
+
+      writeRepoFile(
+        rewriteRepo,
+        "src/rewrite.ts",
+        [
+          "// bob line 1",
+          "export const a = 1;",
+          "// bob line 2",
+          "export const b = 2;",
+          "// bob line 3",
+          "export const c = 3;",
+        ].join("\n")
+      );
+      commitAs(
+        rewriteRepo,
+        { name: "Bob Builder", email: "bob@example.com" },
+        daysAgo(150),
+        "bob initial rewrite file"
+      );
+
+      for (let index = 0; index < 5; index += 1) {
+        writeRepoFile(
+          rewriteRepo,
+          "src/rewrite.ts",
+          `// bob tweak ${index}\nexport const v = ${index};\n`
+        );
+        commitAs(
+          rewriteRepo,
+          { name: "Bob Builder", email: "bob@example.com" },
+          daysAgo(140 - index * 10),
+          `bob small edit ${index}`
+        );
+      }
+      const base = git(rewriteRepo, ["rev-parse", "HEAD"]);
+
+      writeRepoFile(
+        rewriteRepo,
+        "src/rewrite.ts",
+        [
+          "// alice rewrite 1",
+          "export const x = 1;",
+          "// alice rewrite 2",
+          "export const y = 2;",
+          "// alice rewrite 3",
+          "export const z = 3;",
+          "// alice rewrite 4",
+          "export const w = 4;",
+        ].join("\n")
+      );
+      commitAs(
+        rewriteRepo,
+        { name: "Alice Author", email: "alice@example.com" },
+        daysAgo(10),
+        "alice rewrites most lines"
+      );
+      const head = git(rewriteRepo, ["rev-parse", "HEAD"]);
+
+      const output = runEvidenceDemo(rewriteRepo, `${base}...${head}`, {
+        asOf: REFERENCE_DATE,
+      });
+
+      assert.match(output, /Author: Alice Author <alice@example.com>/);
+      assert.match(output, /Familiarity/);
+      assert.match(output, /src\/rewrite\.ts — high/);
+      assert.match(output, /Author owns .* of current lines/);
+      assert.match(output, /1 commit, last touch 10 days ago/);
+      assert.match(output, /6 commits by others in window/);
+    } finally {
+      rmSync(rewriteRepo, { recursive: true, force: true });
+    }
+  });
+
   it("produces a complete end-to-end report against a TypeScript repo with importers", () => {
     const e2eRepo = mkdtempSync(path.join(os.tmpdir(), "evidence-demo-e2e-"));
     try {
