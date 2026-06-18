@@ -164,6 +164,14 @@ function formatFileLabel(filePath: string): string {
   return filePath === "." ? "(repository root)" : filePath;
 }
 
+function formatLineOwnershipLead(finding: FamiliarityFinding): string {
+  const ownership = `Author owns ${formatShare(finding.shareOfCurrentContent)} of current lines`;
+  if (finding.totalChangedLineCount > 0) {
+    return `${ownership} and ${formatShare(finding.shareOfWindowedLineChurn)} of line churn in 6 months`;
+  }
+  return `${ownership} in 6 months`;
+}
+
 function formatFamiliarityDetail(
   finding: FamiliarityFinding,
   asOf: Date
@@ -182,6 +190,18 @@ function formatFamiliarityDetail(
       othersCommitCount === 1
         ? "1 commit by others"
         : `${othersCommitCount} commits by others`;
+
+    if (finding.totalBlameableLineCount > 0) {
+      const lineLead = formatLineOwnershipLead(finding);
+      if (othersCommitCount === 0) {
+        return `${lineLead} (no author commits in window).`;
+      }
+      return `${lineLead} (no author commits in window; ${othersPhrase} in window).`;
+    }
+
+    if (othersCommitCount === 0) {
+      return "No author commits to this file in 6 months.";
+    }
     return `No author commits to this file in 6 months; ${othersPhrase} in this window.`;
   }
 
@@ -190,17 +210,35 @@ function formatFamiliarityDetail(
       ? "1 commit"
       : `${finding.authorCommitCount} commits`;
 
+  if (finding.totalBlameableLineCount > 0) {
+    const lineLead = formatLineOwnershipLead(finding);
+    const commitDetails = [authorCommitsPhrase, lastTouchPhrase];
+
+    if (othersCommitCount === 0) {
+      return `${lineLead} (${commitDetails.join(", ")}).`;
+    }
+
+    const othersPhrase =
+      othersCommitCount === 1
+        ? "1 commit by others in window"
+        : `${othersCommitCount} commits by others in window`;
+    return `${lineLead} (${commitDetails.join(", ")}; ${othersPhrase}).`;
+  }
+
   if (othersCommitCount === 0) {
     return `Author has ${authorCommitsPhrase} to this file in 6 months (sole contributor in window), ${lastTouchPhrase}.`;
   }
 
-  const sharePhrase = ` (${formatShare(finding.shareOfFileCommitChurn)} of file churn)`;
+  const commitActivityPhrase =
+    finding.shareOfFileCommitChurn > 0
+      ? ` (${formatShare(finding.shareOfFileCommitChurn)} of commit activity)`
+      : "";
   const othersPhrase =
     othersCommitCount === 1
       ? "1 commit by others"
       : `${othersCommitCount} commits by others`;
 
-  return `Author has ${authorCommitsPhrase} to this file in 6 months${sharePhrase}, ${lastTouchPhrase}; ${othersPhrase} in this window (${finding.totalFileCommitCount} total).`;
+  return `Author has ${authorCommitsPhrase} to this file in 6 months${commitActivityPhrase}, ${lastTouchPhrase}; ${othersPhrase} in this window (${finding.totalFileCommitCount} total).`;
 }
 
 function renderFamiliarityFinding(

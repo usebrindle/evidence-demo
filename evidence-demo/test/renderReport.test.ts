@@ -68,6 +68,66 @@ const sampleBlastRadius: BlastRadiusFinding[] = [
 ];
 
 describe("renderReport", () => {
+  it("leads familiarity detail with line ownership when blame stats are available", () => {
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["src/owned.ts"],
+      familiarity: [
+        {
+          touchedFile: "src/owned.ts",
+          authorOwnedLineCount: 62,
+          totalBlameableLineCount: 100,
+          shareOfCurrentContent: 0.62,
+          authorChangedLineCount: 41,
+          totalChangedLineCount: 100,
+          shareOfWindowedLineChurn: 0.41,
+          authorCommitCount: 3,
+          totalFileCommitCount: 10,
+          lastTouchDate: new Date("2026-06-07T12:00:00Z"),
+          shareOfFileCommitChurn: 0.3,
+          characterization: "high",
+        },
+      ],
+      blastRadius: [],
+    });
+
+    const text = renderReport(report, plainRenderOptions);
+
+    assert.match(
+      text,
+      /Author owns 62% of current lines and 41% of line churn in 6 months \(3 commits, last touch 10 days ago; 7 commits by others in window\)\./
+    );
+  });
+
+  it("falls back to commit-only phrasing when blameable lines are zero", () => {
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["assets/logo.png"],
+      familiarity: [
+        {
+          touchedFile: "assets/logo.png",
+          authorOwnedLineCount: 0,
+          totalBlameableLineCount: 0,
+          shareOfCurrentContent: 0,
+          authorChangedLineCount: 0,
+          totalChangedLineCount: 0,
+          shareOfWindowedLineChurn: 0,
+          authorCommitCount: 2,
+          totalFileCommitCount: 5,
+          lastTouchDate: new Date("2026-05-01T00:00:00Z"),
+          shareOfFileCommitChurn: 0.4,
+          characterization: "moderate",
+        },
+      ],
+      blastRadius: [],
+    });
+
+    const text = renderReport(report, plainRenderOptions);
+
+    assert.match(text, /Author has 2 commits to this file in 6 months \(40% of commit activity\)/);
+    assert.doesNotMatch(text, /owns .*% of current lines/);
+  });
+
   it("renders familiarity with supporting numbers, not just labels", () => {
     const report = buildEvidenceReport({
       author,
@@ -80,7 +140,7 @@ describe("renderReport", () => {
 
     assert.match(
       text,
-      /Author has 2 commits to this file in 6 months \(1\.1% of file churn\), last touch 4 months ago; 180 commits by others in this window \(182 total\)\./
+      /Author has 2 commits to this file in 6 months \(1\.1% of commit activity\), last touch 4 months ago; 180 commits by others in this window \(182 total\)\./
     );
     assert.match(
       text,

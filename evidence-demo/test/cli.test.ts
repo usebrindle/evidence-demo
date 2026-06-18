@@ -132,7 +132,8 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /Author: Alice Author <alice@example.com>/);
     assert.match(output, /Familiarity/);
     assert.match(output, /src\/auth\.ts — (high|moderate|none)/);
-    assert.match(output, /Author has 2 commits to this file in 6 months/);
+    assert.match(output, /Author owns .* of current lines/);
+    assert.match(output, /2 commits, last touch 10 days ago/);
     assert.match(output, /Blast Radius/);
     assert.match(output, /src\/auth\.ts — isolated/);
     assert.match(output, /Depended on by 2 modules, including src\/login\.ts, src\/signup\.ts/);
@@ -317,9 +318,10 @@ describe("runEvidenceDemo", () => {
       assert.match(output, /Changed files \(2\):/);
       assert.match(output, /Familiarity/);
       assert.match(output, /src\/foo\.ts — high/);
-      assert.match(output, /Author has 4 commits to this file in 6 months/);
+      assert.match(output, /Author owns .* of current lines/);
+      assert.match(output, /4 commits, last touch 5 days ago/);
       assert.match(output, /src\/bar\.ts — high/);
-      assert.match(output, /Author has 1 commit to this file in 6 months/);
+      assert.match(output, /1 commit, last touch 5 days ago/);
       assert.doesNotMatch(output, /src\/ —/);
     } finally {
       rmSync(famRepo, { recursive: true, force: true });
