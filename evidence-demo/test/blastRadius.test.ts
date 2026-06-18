@@ -203,18 +203,18 @@ describe("countTransitiveReachForFile", () => {
 });
 
 describe("characterizeBlastRadius", () => {
-  it("labels 0-2 direct importers as isolated", () => {
+  it("labels 0-2 reach as isolated", () => {
     assert.equal(characterizeBlastRadius(0), "isolated");
     assert.equal(characterizeBlastRadius(1), "isolated");
     assert.equal(characterizeBlastRadius(2), "isolated");
   });
 
-  it("labels 3-10 direct importers as moderate", () => {
+  it("labels 3-10 reach as moderate", () => {
     assert.equal(characterizeBlastRadius(3), "moderate");
     assert.equal(characterizeBlastRadius(10), "moderate");
   });
 
-  it("labels 11+ direct importers as broad", () => {
+  it("labels 11+ reach as broad", () => {
     assert.equal(characterizeBlastRadius(11), "broad");
     assert.equal(characterizeBlastRadius(34), "broad");
   });
@@ -254,16 +254,47 @@ describe("analyzeBlastRadius", () => {
 
     const hub = findings.find((finding) => finding.changedFile === "src/hub.ts");
     assert.ok(hub);
-    assert.equal(hub.dependentCount, 12);
+    assert.equal(hub.directDependentCount, 12);
+    assert.equal(hub.transitiveReachCount, 12);
     assert.equal(hub.characterization, "broad");
-    assert.equal(hub.dependents.length, DEPENDENT_SAMPLE_SIZE);
-    assert.deepEqual(hub.dependents, importers.slice(0, DEPENDENT_SAMPLE_SIZE));
+    assert.equal(hub.directDependents.length, DEPENDENT_SAMPLE_SIZE);
+    assert.deepEqual(
+      hub.directDependents,
+      importers.slice(0, DEPENDENT_SAMPLE_SIZE)
+    );
 
     const leaf = findings.find((finding) => finding.changedFile === "src/leaf.ts");
     assert.ok(leaf);
-    assert.equal(leaf.dependentCount, 1);
+    assert.equal(leaf.directDependentCount, 1);
+    assert.equal(leaf.transitiveReachCount, 1);
     assert.equal(leaf.characterization, "isolated");
-    assert.deepEqual(leaf.dependents, ["src/only.ts"]);
+    assert.deepEqual(leaf.directDependents, ["src/only.ts"]);
+  });
+
+  it("characterizes a deep chain leaf as broad from transitive reach despite one direct importer", () => {
+    const pageCount = 10;
+    const pages = Array.from(
+      { length: pageCount },
+      (_, index) => `src/pages/page${index}.tsx`
+    );
+    const graph = new Map<string, readonly string[]>([
+      ["src/input.ts", ["src/form.ts"]],
+      ["src/form.ts", ["src/header.ts"]],
+      ["src/header.ts", pages],
+    ]);
+
+    const findings = analyzeBlastRadius({
+      changedFiles: ["src/input.ts"],
+      importGraph: graph,
+    });
+
+    assert.equal(findings.length, 1);
+    const finding = findings[0];
+    assert.equal(finding.directDependentCount, 1);
+    assert.equal(finding.transitiveReachCount, pageCount + 2);
+    assert.ok(finding.transitiveReachCount >= 11);
+    assert.equal(finding.characterization, "broad");
+    assert.deepEqual(finding.directDependents, ["src/form.ts"]);
   });
 
   it("skips non-analyzable changed files", () => {
@@ -292,17 +323,19 @@ describe("analyzeBlastRadius", () => {
 
     const util = findings.find((finding) => finding.changedFile === "src/util.js");
     assert.ok(util);
-    assert.equal(util.dependentCount, 2);
+    assert.equal(util.directDependentCount, 2);
+    assert.equal(util.transitiveReachCount, 2);
     assert.equal(util.characterization, "isolated");
-    assert.deepEqual(util.dependents, ["src/a.js", "src/b.jsx"]);
+    assert.deepEqual(util.directDependents, ["src/a.js", "src/b.jsx"]);
 
     const widget = findings.find(
       (finding) => finding.changedFile === "src/widget.jsx"
     );
     assert.ok(widget);
-    assert.equal(widget.dependentCount, 1);
+    assert.equal(widget.directDependentCount, 1);
+    assert.equal(widget.transitiveReachCount, 1);
     assert.equal(widget.characterization, "isolated");
-    assert.deepEqual(widget.dependents, ["src/app.jsx"]);
+    assert.deepEqual(widget.directDependents, ["src/app.jsx"]);
   });
 });
 
@@ -369,9 +402,10 @@ describe("analyzeBlastRadius integration", () => {
       (finding) => finding.changedFile === "src/util.ts"
     );
     assert.ok(utilFinding);
-    assert.equal(utilFinding.dependentCount, 5);
+    assert.equal(utilFinding.directDependentCount, 5);
+    assert.equal(utilFinding.transitiveReachCount, 5);
     assert.equal(utilFinding.characterization, "moderate");
-    assert.deepEqual(utilFinding.dependents, [
+    assert.deepEqual(utilFinding.directDependents, [
       "src/a.ts",
       "src/b.ts",
       "src/dynamic.ts",
@@ -383,9 +417,10 @@ describe("analyzeBlastRadius integration", () => {
       (finding) => finding.changedFile === "src/isolated.ts"
     );
     assert.ok(isolatedFinding);
-    assert.equal(isolatedFinding.dependentCount, 0);
+    assert.equal(isolatedFinding.directDependentCount, 0);
+    assert.equal(isolatedFinding.transitiveReachCount, 0);
     assert.equal(isolatedFinding.characterization, "isolated");
-    assert.deepEqual(isolatedFinding.dependents, []);
+    assert.deepEqual(isolatedFinding.directDependents, []);
   });
 });
 
@@ -444,9 +479,10 @@ describe("analyzeBlastRadius path alias integration", () => {
     });
 
     assert.equal(findings.length, 1);
-    assert.equal(findings[0].dependentCount, 3);
+    assert.equal(findings[0].directDependentCount, 3);
+    assert.equal(findings[0].transitiveReachCount, 3);
     assert.equal(findings[0].characterization, "moderate");
-    assert.deepEqual(findings[0].dependents, [
+    assert.deepEqual(findings[0].directDependents, [
       "src/alias-a.ts",
       "src/alias-b.ts",
       "src/alias-c.ts",
@@ -502,17 +538,19 @@ describe("analyzeBlastRadius JavaScript integration", () => {
       (finding) => finding.changedFile === "src/util.js"
     );
     assert.ok(utilFinding);
-    assert.equal(utilFinding.dependentCount, 2);
+    assert.equal(utilFinding.directDependentCount, 2);
+    assert.equal(utilFinding.transitiveReachCount, 2);
     assert.equal(utilFinding.characterization, "isolated");
-    assert.deepEqual(utilFinding.dependents, ["src/a.js", "src/b.jsx"]);
+    assert.deepEqual(utilFinding.directDependents, ["src/a.js", "src/b.jsx"]);
 
     const isolatedFinding = findings.find(
       (finding) => finding.changedFile === "src/isolated.mjs"
     );
     assert.ok(isolatedFinding);
-    assert.equal(isolatedFinding.dependentCount, 0);
+    assert.equal(isolatedFinding.directDependentCount, 0);
+    assert.equal(isolatedFinding.transitiveReachCount, 0);
     assert.equal(isolatedFinding.characterization, "isolated");
-    assert.deepEqual(isolatedFinding.dependents, []);
+    assert.deepEqual(isolatedFinding.directDependents, []);
   });
 });
 
@@ -564,9 +602,10 @@ describe("analyzeBlastRadius require() integration", () => {
       (finding) => finding.changedFile === "src/util.js"
     );
     assert.ok(utilFinding);
-    assert.equal(utilFinding.dependentCount, 2);
+    assert.equal(utilFinding.directDependentCount, 2);
+    assert.equal(utilFinding.transitiveReachCount, 2);
     assert.equal(utilFinding.characterization, "isolated");
-    assert.deepEqual(utilFinding.dependents, [
+    assert.deepEqual(utilFinding.directDependents, [
       "src/consumer-a.js",
       "src/consumer-b.js",
     ]);
@@ -575,9 +614,10 @@ describe("analyzeBlastRadius require() integration", () => {
       (finding) => finding.changedFile === "src/isolated.js"
     );
     assert.ok(isolatedFinding);
-    assert.equal(isolatedFinding.dependentCount, 0);
+    assert.equal(isolatedFinding.directDependentCount, 0);
+    assert.equal(isolatedFinding.transitiveReachCount, 0);
     assert.equal(isolatedFinding.characterization, "isolated");
-    assert.deepEqual(isolatedFinding.dependents, []);
+    assert.deepEqual(isolatedFinding.directDependents, []);
   });
 
   it("merges import and require dependents on the same changed file", () => {

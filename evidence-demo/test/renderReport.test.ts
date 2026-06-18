@@ -35,20 +35,22 @@ const sampleFamiliarity: FamiliarityFinding[] = [
 const sampleBlastRadius: BlastRadiusFinding[] = [
   {
     changedFile: "src/util.ts",
-    dependentCount: 34,
-    dependents: [
+    directDependentCount: 34,
+    directDependents: [
       "src/a.ts",
       "src/b.ts",
       "src/c.ts",
       "src/d.ts",
       "src/e.ts",
     ],
+    transitiveReachCount: 34,
     characterization: "broad",
   },
   {
     changedFile: "src/isolated.ts",
-    dependentCount: 0,
-    dependents: [],
+    directDependentCount: 0,
+    directDependents: [],
+    transitiveReachCount: 0,
     characterization: "isolated",
   },
 ];

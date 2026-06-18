@@ -221,24 +221,26 @@ function renderFamiliarityFinding(
 }
 
 function formatDependentSample(finding: BlastRadiusFinding): string {
-  if (finding.dependentCount === 0) {
+  if (finding.directDependentCount === 0) {
     return "Depended on by no modules.";
   }
 
-  const moduleWord = finding.dependentCount === 1 ? "module" : "modules";
-  const remaining = finding.dependentCount - finding.dependents.length;
+  const moduleWord =
+    finding.directDependentCount === 1 ? "module" : "modules";
+  const remaining =
+    finding.directDependentCount - finding.directDependents.length;
 
-  if (finding.dependents.length === 0) {
-    return `Depended on by ${finding.dependentCount} ${moduleWord}.`;
+  if (finding.directDependents.length === 0) {
+    return `Depended on by ${finding.directDependentCount} ${moduleWord}.`;
   }
 
-  const listed = finding.dependents.join(", ");
+  const listed = finding.directDependents.join(", ");
   if (remaining <= 0) {
-    return `Depended on by ${finding.dependentCount} ${moduleWord}, including ${listed}.`;
+    return `Depended on by ${finding.directDependentCount} ${moduleWord}, including ${listed}.`;
   }
 
   const moreWord = remaining === 1 ? "1 more" : `${remaining} more`;
-  return `Depended on by ${finding.dependentCount} ${moduleWord}, including ${listed} (and ${moreWord}).`;
+  return `Depended on by ${finding.directDependentCount} ${moduleWord}, including ${listed} (and ${moreWord}).`;
 }
 
 function renderBlastRadiusFinding(
@@ -292,7 +294,7 @@ export function renderReport(
     (a, b) =>
       BLAST_RADIUS_ORDER[a.characterization] -
         BLAST_RADIUS_ORDER[b.characterization] ||
-      b.dependentCount - a.dependentCount ||
+      b.directDependentCount - a.directDependentCount ||
       a.changedFile.localeCompare(b.changedFile)
   );
 
