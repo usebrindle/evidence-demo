@@ -176,6 +176,10 @@ function formatFamiliarityDetail(
   finding: FamiliarityFinding,
   asOf: Date
 ): string {
+  if (finding.changeKind === "added") {
+    return "File added in this PR; no prior history on this path. Author is the sole contributor in this change.";
+  }
+
   const othersCommitCount = Math.max(
     0,
     finding.totalFileCommitCount - finding.authorCommitCount
@@ -383,7 +387,7 @@ export function renderReport(
     palette.sectionHeader("Familiarity"),
     palette.sectionHeader("-----------"),
     palette.sectionContext(
-      "  How much the author worked on each changed file in the 6 months before this PR."
+      "  How much the author had worked on each changed file before this PR (last 6 months); added files labeled separately."
     )
   );
 

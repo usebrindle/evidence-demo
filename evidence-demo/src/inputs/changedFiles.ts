@@ -10,8 +10,15 @@ export interface AuthorIdentity {
   email: string;
 }
 
+export type FileChangeKind = "added" | "modified";
+
+export interface ChangedFileEntry {
+  path: string;
+  changeKind: FileChangeKind;
+}
+
 export interface ChangedFilesResult {
-  changedFiles: string[];
+  changedFiles: ChangedFileEntry[];
   author: AuthorIdentity;
   /** Resolved commit SHA for the merge-base or explicit range base. */
   baseRevision: string;
@@ -146,7 +153,7 @@ function resolveRange(
   }
 }
 
-function listChangedFiles(
+function listChangedFilePaths(
   repoPath: string,
   base: string,
   head: string
@@ -156,6 +163,65 @@ function listChangedFiles(
     return [];
   }
   return output.split("\n").filter((filePath) => filePath.length > 0);
+}
+
+function listAddedFilePaths(
+  repoPath: string,
+  base: string,
+  head: string
+): Set<string> {
+  const output = runGit(repoPath, [
+    "diff",
+    "--diff-filter=A",
+    "--name-only",
+    `${base}...${head}`,
+  ]);
+  if (output.length === 0) {
+    return new Set();
+  }
+  return new Set(output.split("\n").filter((filePath) => filePath.length > 0));
+}
+
+function pathExistsAtRevision(
+  repoPath: string,
+  revision: string,
+  filePath: string
+): boolean {
+  try {
+    runGit(repoPath, ["cat-file", "-e", `${revision}:${filePath}`]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveChangeKind(
+  repoPath: string,
+  base: string,
+  filePath: string,
+  addedPaths: ReadonlySet<string>
+): FileChangeKind {
+  if (addedPaths.has(filePath)) {
+    return "added";
+  }
+  if (!pathExistsAtRevision(repoPath, base, filePath)) {
+    return "added";
+  }
+  return "modified";
+}
+
+function listChangedFileEntries(
+  repoPath: string,
+  base: string,
+  head: string
+): ChangedFileEntry[] {
+  const changedPaths = listChangedFilePaths(repoPath, base, head);
+  const addedPaths = listAddedFilePaths(repoPath, base, head);
+
+  return changedPaths.map((filePath) => ({
+    path: filePath,
+    changeKind: resolveChangeKind(repoPath, base, filePath, addedPaths),
+  }));
 }
 
 function resolveAuthor(repoPath: string, head: string): AuthorIdentity {
@@ -179,7 +245,7 @@ export function resolveChangedFiles(input: ChangedFilesInput): ChangedFilesResul
   const { base, head } = resolveRange(repoPath, parsed);
 
   return {
-    changedFiles: listChangedFiles(repoPath, base, head),
+    changedFiles: listChangedFileEntries(repoPath, base, head),
     author: resolveAuthor(repoPath, head),
     baseRevision: base,
     headRevision: head,

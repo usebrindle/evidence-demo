@@ -3,13 +3,18 @@
  * Inputs: author identity, touched paths, and a history source.
  */
 
-import type { AuthorIdentity } from "../inputs/changedFiles.js";
+import type {
+  AuthorIdentity,
+  ChangedFileEntry,
+  FileChangeKind,
+} from "../inputs/changedFiles.js";
 import type { GitBlameSource } from "../inputs/gitBlameSource.js";
 import type { GitHistorySource } from "../inputs/gitHistorySource.js";
 import { historyWindowSince } from "../inputs/gitHistorySource.js";
 
 export interface FamiliarityFinding {
   touchedFile: string;
+  changeKind: FileChangeKind;
   authorOwnedLineCount: number;
   totalBlameableLineCount: number;
   shareOfCurrentContent: number;
@@ -25,7 +30,7 @@ export interface FamiliarityFinding {
 
 export interface FamiliarityInput {
   author: AuthorIdentity;
-  touchedPaths: readonly string[];
+  changedFiles: readonly ChangedFileEntry[];
   historySource: GitHistorySource;
   blameSource: GitBlameSource;
   /** Merge-base (or explicit range base) — measurement stop point for blame and history. */
@@ -95,6 +100,7 @@ function daysSince(date: Date, asOf: Date): number {
 /**
  * Slice 3 + LLD 0001 combined rule: line shares and commit activity, recency-gated.
  * Stale history cannot yield high regardless of line ownership or commit count.
+ * Slice 8: added files bypass the combined rule (greenfield gate → high).
  */
 export function characterizeFamiliarity(
   authorCommitCount: number,
@@ -102,9 +108,14 @@ export function characterizeFamiliarity(
   lastTouchDate: Date | null,
   shareOfCurrentContent: number = 0,
   shareOfWindowedLineChurn: number = 0,
-  asOf: Date = new Date()
+  asOf: Date = new Date(),
+  changeKind: FileChangeKind = "modified"
 ): Pick<FamiliarityFinding, "shareOfFileCommitChurn" | "characterization"> {
   const share = shareOfFileCommitChurn(authorCommitCount, totalFileCommitCount);
+
+  if (changeKind === "added") {
+    return { shareOfFileCommitChurn: share, characterization: "high" };
+  }
 
   if (authorCommitCount === 0 || lastTouchDate === null) {
     return { shareOfFileCommitChurn: share, characterization: "none" };
@@ -154,9 +165,44 @@ export function analyzeFamiliarity(
   asOf: Date = new Date()
 ): FamiliarityFinding[] {
   const since = historyWindowSince(asOf);
-  const touchedFiles = [...new Set(input.touchedPaths)];
+  const seenPaths = new Set<string>();
+  const uniqueEntries = input.changedFiles.filter((entry) => {
+    if (seenPaths.has(entry.path)) {
+      return false;
+    }
+    seenPaths.add(entry.path);
+    return true;
+  });
 
-  return touchedFiles.map((touchedFile) => {
+  return uniqueEntries.map(({ path: touchedFile, changeKind }) => {
+    if (changeKind === "added") {
+      const { shareOfFileCommitChurn, characterization } = characterizeFamiliarity(
+        0,
+        0,
+        null,
+        0,
+        0,
+        asOf,
+        changeKind
+      );
+
+      return {
+        touchedFile,
+        changeKind,
+        authorOwnedLineCount: 0,
+        totalBlameableLineCount: 0,
+        shareOfCurrentContent: 0,
+        authorChangedLineCount: 0,
+        totalChangedLineCount: 0,
+        shareOfWindowedLineChurn: 0,
+        authorCommitCount: 0,
+        totalFileCommitCount: 0,
+        lastTouchDate: null,
+        shareOfFileCommitChurn,
+        characterization,
+      };
+    }
+
     const stats = input.historySource.query({
       authorEmail: input.author.email,
       path: touchedFile,
@@ -193,11 +239,13 @@ export function analyzeFamiliarity(
       stats.lastTouchDate,
       currentContentShare,
       windowedLineChurnShare,
-      asOf
+      asOf,
+      changeKind
     );
 
     return {
       touchedFile,
+      changeKind,
       authorOwnedLineCount,
       totalBlameableLineCount,
       shareOfCurrentContent: currentContentShare,

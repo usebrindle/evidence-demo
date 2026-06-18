@@ -6,6 +6,7 @@ import path from "node:path";
 import { after, before, describe, it } from "node:test";
 
 import { resolveChangedFiles } from "../src/inputs/changedFiles.js";
+import type { ChangedFileEntry } from "../src/inputs/changedFiles.js";
 
 function git(repoPath: string, args: readonly string[]): string {
   return execFileSync("git", args as string[], {
@@ -26,6 +27,12 @@ function writeRepoFile(
 
 function assertValidSha(sha: string): void {
   assert.match(sha, /^[0-9a-f]{40}$/, "expected a full 40-character git SHA");
+}
+
+function sortChangedFiles(
+  entries: readonly ChangedFileEntry[]
+): ChangedFileEntry[] {
+  return [...entries].sort((left, right) => left.path.localeCompare(right.path));
 }
 
 describe("resolveChangedFiles", () => {
@@ -71,9 +78,9 @@ describe("resolveChangedFiles", () => {
       prOrRange: "main...feature/auth",
     });
 
-    assert.deepEqual(result.changedFiles.sort(), [
-      "docs/auth.md",
-      "src/auth.ts",
+    assert.deepEqual(sortChangedFiles(result.changedFiles), [
+      { path: "docs/auth.md", changeKind: "added" },
+      { path: "src/auth.ts", changeKind: "added" },
     ]);
     assert.equal(result.author.name, "Alice Author");
     assert.equal(result.author.email, "alice@example.com");
@@ -89,9 +96,9 @@ describe("resolveChangedFiles", () => {
       prOrRange: "feature/auth",
     });
 
-    assert.deepEqual(result.changedFiles.sort(), [
-      "docs/auth.md",
-      "src/auth.ts",
+    assert.deepEqual(sortChangedFiles(result.changedFiles), [
+      { path: "docs/auth.md", changeKind: "added" },
+      { path: "src/auth.ts", changeKind: "added" },
     ]);
     assert.equal(result.author.email, "alice@example.com");
     assertValidSha(result.headRevision);
@@ -106,15 +113,54 @@ describe("resolveChangedFiles", () => {
       prOrRange: "42",
     });
 
-    assert.deepEqual(result.changedFiles.sort(), [
-      "docs/auth.md",
-      "src/auth.ts",
+    assert.deepEqual(sortChangedFiles(result.changedFiles), [
+      { path: "docs/auth.md", changeKind: "added" },
+      { path: "src/auth.ts", changeKind: "added" },
     ]);
     assert.equal(result.author.name, "Alice Author");
     assertValidSha(result.headRevision);
     assert.equal(result.headRevision, featureCommit);
     assertValidSha(result.baseRevision);
     assert.equal(result.baseRevision, mainCommit);
+  });
+
+  it("tags each changed path with added or modified change kind", () => {
+    const mixedRepoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-changed-files-mixed-")
+    );
+
+    try {
+      git(mixedRepoPath, ["init"]);
+      git(mixedRepoPath, ["config", "user.name", "Alice Author"]);
+      git(mixedRepoPath, ["config", "user.email", "alice@example.com"]);
+
+      writeRepoFile(mixedRepoPath, "README.md", "main readme\n");
+      writeRepoFile(mixedRepoPath, "src/existing.ts", "export const existing = 1;\n");
+      git(mixedRepoPath, ["add", "."]);
+      git(mixedRepoPath, ["commit", "-m", "init main"]);
+
+      git(mixedRepoPath, ["checkout", "-b", "feature/mixed"]);
+      writeRepoFile(mixedRepoPath, "src/new.ts", "export const created = true;\n");
+      writeRepoFile(
+        mixedRepoPath,
+        "src/existing.ts",
+        "export const existing = 2;\n"
+      );
+      git(mixedRepoPath, ["add", "."]);
+      git(mixedRepoPath, ["commit", "-m", "add file and modify existing"]);
+
+      const result = resolveChangedFiles({
+        repoPath: mixedRepoPath,
+        prOrRange: "main...feature/mixed",
+      });
+
+      assert.deepEqual(sortChangedFiles(result.changedFiles), [
+        { path: "src/existing.ts", changeKind: "modified" },
+        { path: "src/new.ts", changeKind: "added" },
+      ]);
+    } finally {
+      rmSync(mixedRepoPath, { recursive: true, force: true });
+    }
   });
 
   it("returns an empty list when the range has no file changes", () => {
