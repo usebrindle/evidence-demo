@@ -207,6 +207,50 @@ describe("buildEvidenceReport", () => {
     assertNoRiskScore(report);
   });
 
+  it("states blame-based familiarity limitations and merged git-history caveats", () => {
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["src/util.ts"],
+      familiarity: sampleFamiliarity,
+      blastRadius: sampleBlastRadius,
+    });
+
+    assert.ok(
+      report.limitations.some(
+        (item) =>
+          item.includes("git blame at PR head") &&
+          item.includes("current content ownership") &&
+          item.includes("windowed line churn") &&
+          item.includes("git log") &&
+          item.includes("Commit-share is reported separately") &&
+          item.includes("not a substitute for line ownership")
+      )
+    );
+    assert.ok(
+      report.limitations.some(
+        (item) =>
+          item.includes("Git history and blame do not account for") &&
+          item.includes("renames, squashes, co-authored commits, or bot attribution") &&
+          item.includes("generated, minified, or binary files")
+      )
+    );
+    assert.ok(
+      report.limitations.some(
+        (item) =>
+          item.includes("Familiarity window is fixed at 6 months") &&
+          item.includes("recency gates the characterization label") &&
+          item.includes("high current-line ownership without a recent touch")
+      )
+    );
+    assert.ok(
+      report.limitations.every(
+        (item) =>
+          !item.includes("Git history does not account for") ||
+          item.includes("Git history and blame do not account for")
+      )
+    );
+  });
+
   it("passes through changeReference when provided", () => {
     const report = buildEvidenceReport({
       author,
