@@ -17,6 +17,7 @@ import type { GitBlameSource } from "../src/inputs/gitBlameSource.js";
 import { createGitBlameSource } from "../src/inputs/gitBlameSource.js";
 import type { ChangedFileEntry } from "../src/inputs/changedFiles.js";
 import { createGitHistorySource } from "../src/inputs/gitHistorySource.js";
+import type { GitHistorySource } from "../src/inputs/gitHistorySource.js";
 
 const REFERENCE_DATE = new Date("2026-06-17T12:00:00Z");
 
@@ -36,6 +37,22 @@ function createZeroBlameSource(): GitBlameSource {
       authorChangedLineCount: 0,
       totalChangedLineCount: 0,
     }),
+  };
+}
+
+function createThrowingHistorySource(): GitHistorySource {
+  return {
+    query: () => {
+      throw new Error("history query should not run for added files");
+    },
+  };
+}
+
+function createThrowingBlameSource(): GitBlameSource {
+  return {
+    query: () => {
+      throw new Error("blame query should not run for added files");
+    },
   };
 }
 
@@ -361,6 +378,7 @@ describe("analyzeFamiliarity", () => {
 
     assert.equal(findings.length, 1);
     assert.equal(findings[0]?.touchedFile, "lib/util.ts");
+    assert.equal(findings[0]?.changeKind, "modified");
     assert.equal(findings[0]?.authorCommitCount, 1);
     assert.equal(findings[0]?.totalFileCommitCount, 2);
     assert.deepEqual(findings[0]?.lastTouchDate, daysAgo(20));
@@ -370,6 +388,34 @@ describe("analyzeFamiliarity", () => {
     assert.equal(findings[0]?.authorChangedLineCount, 0);
     assert.equal(findings[0]?.totalChangedLineCount, 0);
     assert.equal(findings[0]?.shareOfWindowedLineChurn, 0);
+  });
+
+  it("skips history and blame queries for added files and leaves zeros", () => {
+    const findings = analyzeFamiliarity(
+      {
+        author: { name: "Alice Author", email: "alice@example.com" },
+        changedFiles: [changedEntry("src/new.ts", "added")],
+        historySource: createThrowingHistorySource(),
+        blameSource: createThrowingBlameSource(),
+        baseRevision: "HEAD",
+      },
+      REFERENCE_DATE
+    );
+
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.touchedFile, "src/new.ts");
+    assert.equal(findings[0]?.changeKind, "added");
+    assert.equal(findings[0]?.authorCommitCount, 0);
+    assert.equal(findings[0]?.totalFileCommitCount, 0);
+    assert.equal(findings[0]?.lastTouchDate, null);
+    assert.equal(findings[0]?.authorOwnedLineCount, 0);
+    assert.equal(findings[0]?.totalBlameableLineCount, 0);
+    assert.equal(findings[0]?.shareOfCurrentContent, 0);
+    assert.equal(findings[0]?.authorChangedLineCount, 0);
+    assert.equal(findings[0]?.totalChangedLineCount, 0);
+    assert.equal(findings[0]?.shareOfWindowedLineChurn, 0);
+    assert.equal(findings[0]?.shareOfFileCommitChurn, 0);
+    assert.equal(findings[0]?.characterization, "high");
   });
 });
 

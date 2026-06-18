@@ -21,6 +21,7 @@ function changedEntry(
 const sampleFamiliarity: FamiliarityFinding[] = [
   {
     touchedFile: "src/util.ts",
+    changeKind: "modified",
     authorOwnedLineCount: 0,
     totalBlameableLineCount: 0,
     shareOfCurrentContent: 0,
@@ -35,6 +36,7 @@ const sampleFamiliarity: FamiliarityFinding[] = [
   },
   {
     touchedFile: "docs/guide.md",
+    changeKind: "modified",
     authorOwnedLineCount: 0,
     totalBlameableLineCount: 0,
     shareOfCurrentContent: 0,

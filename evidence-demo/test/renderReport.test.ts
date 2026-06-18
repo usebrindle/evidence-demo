@@ -24,6 +24,7 @@ function changedEntry(
 const sampleFamiliarity: FamiliarityFinding[] = [
   {
     touchedFile: "src/util.ts",
+    changeKind: "modified",
     authorOwnedLineCount: 0,
     totalBlameableLineCount: 0,
     shareOfCurrentContent: 0,
@@ -38,6 +39,7 @@ const sampleFamiliarity: FamiliarityFinding[] = [
   },
   {
     touchedFile: "docs/guide.md",
+    changeKind: "modified",
     authorOwnedLineCount: 0,
     totalBlameableLineCount: 0,
     shareOfCurrentContent: 0,
@@ -83,6 +85,7 @@ describe("renderReport", () => {
       familiarity: [
         {
           touchedFile: "src/owned.ts",
+          changeKind: "modified",
           authorOwnedLineCount: 62,
           totalBlameableLineCount: 100,
           shareOfCurrentContent: 0.62,
@@ -114,6 +117,7 @@ describe("renderReport", () => {
       familiarity: [
         {
           touchedFile: "assets/logo.png",
+          changeKind: "modified",
           authorOwnedLineCount: 0,
           totalBlameableLineCount: 0,
           shareOfCurrentContent: 0,
@@ -279,6 +283,7 @@ describe("renderReport", () => {
       familiarity: [
         {
           touchedFile: "package.json",
+          changeKind: "modified",
           authorOwnedLineCount: 0,
           totalBlameableLineCount: 0,
           shareOfCurrentContent: 0,

@@ -14,6 +14,7 @@ import { historyWindowSince } from "../inputs/gitHistorySource.js";
 
 export interface FamiliarityFinding {
   touchedFile: string;
+  changeKind: FileChangeKind;
   authorOwnedLineCount: number;
   totalBlameableLineCount: number;
   shareOfCurrentContent: number;
@@ -174,6 +175,34 @@ export function analyzeFamiliarity(
   });
 
   return uniqueEntries.map(({ path: touchedFile, changeKind }) => {
+    if (changeKind === "added") {
+      const { shareOfFileCommitChurn, characterization } = characterizeFamiliarity(
+        0,
+        0,
+        null,
+        0,
+        0,
+        asOf,
+        changeKind
+      );
+
+      return {
+        touchedFile,
+        changeKind,
+        authorOwnedLineCount: 0,
+        totalBlameableLineCount: 0,
+        shareOfCurrentContent: 0,
+        authorChangedLineCount: 0,
+        totalChangedLineCount: 0,
+        shareOfWindowedLineChurn: 0,
+        authorCommitCount: 0,
+        totalFileCommitCount: 0,
+        lastTouchDate: null,
+        shareOfFileCommitChurn,
+        characterization,
+      };
+    }
+
     const stats = input.historySource.query({
       authorEmail: input.author.email,
       path: touchedFile,
@@ -216,6 +245,7 @@ export function analyzeFamiliarity(
 
     return {
       touchedFile,
+      changeKind,
       authorOwnedLineCount,
       totalBlameableLineCount,
       shareOfCurrentContent: currentContentShare,
