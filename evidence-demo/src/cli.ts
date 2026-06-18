@@ -36,10 +36,12 @@ export function runEvidenceDemo(
   const resolvedRepo = path.resolve(repoPath);
   const asOf = options.asOf ?? new Date();
 
-  const { changedFiles, author, baseRevision } = resolveChangedFiles({
-    repoPath: resolvedRepo,
-    prOrRange,
-  });
+  const { changedFiles: changedFileEntries, author, baseRevision } =
+    resolveChangedFiles({
+      repoPath: resolvedRepo,
+      prOrRange,
+    });
+  const changedFiles = changedFileEntries.map((entry) => entry.path);
 
   const historySource = createGitHistorySource(resolvedRepo);
   const blameSource = createGitBlameSource(resolvedRepo);
