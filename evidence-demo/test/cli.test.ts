@@ -445,6 +445,70 @@ describe("runEvidenceDemo", () => {
     }
   });
 
+  it("shows none familiarity when the author's only history on a file is the PR itself", () => {
+    const firstTouchRepo = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-first-touch-e2e-")
+    );
+    try {
+      git(firstTouchRepo, ["init"]);
+      git(firstTouchRepo, ["config", "user.name", "Setup"]);
+      git(firstTouchRepo, ["config", "user.email", "setup@example.com"]);
+
+      writeRepoFile(
+        firstTouchRepo,
+        "src/existing.ts",
+        "export const existing = 1;\n"
+      );
+      commitAs(
+        firstTouchRepo,
+        { name: "Bob Builder", email: "bob@example.com" },
+        daysAgo(150),
+        "bob creates existing file"
+      );
+
+      for (let index = 0; index < 3; index += 1) {
+        writeRepoFile(
+          firstTouchRepo,
+          "src/existing.ts",
+          `export const existing = ${index + 2};\n`
+        );
+        commitAs(
+          firstTouchRepo,
+          { name: "Bob Builder", email: "bob@example.com" },
+          daysAgo(120 - index * 20),
+          `bob updates existing ${index}`
+        );
+      }
+      const base = git(firstTouchRepo, ["rev-parse", "HEAD"]);
+
+      writeRepoFile(
+        firstTouchRepo,
+        "src/existing.ts",
+        "export const existing = 99;\n"
+      );
+      commitAs(
+        firstTouchRepo,
+        { name: "Alice Author", email: "alice@example.com" },
+        daysAgo(5),
+        "alice first touch on existing file"
+      );
+      const head = git(firstTouchRepo, ["rev-parse", "HEAD"]);
+
+      const output = runEvidenceDemo(firstTouchRepo, `${base}...${head}`, {
+        asOf: REFERENCE_DATE,
+      });
+
+      assert.match(output, /Author: Alice Author <alice@example.com>/);
+      assert.match(output, /Familiarity/);
+      assert.match(output, /src\/existing\.ts — none/);
+      assert.doesNotMatch(output, /src\/existing\.ts — moderate/);
+      assert.match(output, /before this PR/);
+      assert.match(output, /no author commits in window/);
+    } finally {
+      rmSync(firstTouchRepo, { recursive: true, force: true });
+    }
+  });
+
   it("shows high familiarity for single-rewrite when line ownership outweighs one commit", () => {
     const rewriteRepo = mkdtempSync(
       path.join(os.tmpdir(), "evidence-demo-single-rewrite-e2e-")
