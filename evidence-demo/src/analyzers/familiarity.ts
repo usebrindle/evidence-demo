@@ -3,7 +3,11 @@
  * Inputs: author identity, touched paths, and a history source.
  */
 
-import type { AuthorIdentity, ChangedFileEntry } from "../inputs/changedFiles.js";
+import type {
+  AuthorIdentity,
+  ChangedFileEntry,
+  FileChangeKind,
+} from "../inputs/changedFiles.js";
 import type { GitBlameSource } from "../inputs/gitBlameSource.js";
 import type { GitHistorySource } from "../inputs/gitHistorySource.js";
 import { historyWindowSince } from "../inputs/gitHistorySource.js";
@@ -95,6 +99,7 @@ function daysSince(date: Date, asOf: Date): number {
 /**
  * Slice 3 + LLD 0001 combined rule: line shares and commit activity, recency-gated.
  * Stale history cannot yield high regardless of line ownership or commit count.
+ * Slice 8: added files bypass the combined rule (greenfield gate → high).
  */
 export function characterizeFamiliarity(
   authorCommitCount: number,
@@ -102,9 +107,14 @@ export function characterizeFamiliarity(
   lastTouchDate: Date | null,
   shareOfCurrentContent: number = 0,
   shareOfWindowedLineChurn: number = 0,
-  asOf: Date = new Date()
+  asOf: Date = new Date(),
+  changeKind: FileChangeKind = "modified"
 ): Pick<FamiliarityFinding, "shareOfFileCommitChurn" | "characterization"> {
   const share = shareOfFileCommitChurn(authorCommitCount, totalFileCommitCount);
+
+  if (changeKind === "added") {
+    return { shareOfFileCommitChurn: share, characterization: "high" };
+  }
 
   if (authorCommitCount === 0 || lastTouchDate === null) {
     return { shareOfFileCommitChurn: share, characterization: "none" };
@@ -163,7 +173,7 @@ export function analyzeFamiliarity(
     return true;
   });
 
-  return uniqueEntries.map(({ path: touchedFile }) => {
+  return uniqueEntries.map(({ path: touchedFile, changeKind }) => {
     const stats = input.historySource.query({
       authorEmail: input.author.email,
       path: touchedFile,
@@ -200,7 +210,8 @@ export function analyzeFamiliarity(
       stats.lastTouchDate,
       currentContentShare,
       windowedLineChurnShare,
-      asOf
+      asOf,
+      changeKind
     );
 
     return {

@@ -478,6 +478,32 @@ describe("characterizeFamiliarity", () => {
     const result = characterizeFamiliarity(1, 5, daysAgo(200), 0.9, 0.9, REFERENCE_DATE);
     assert.equal(result.characterization, "none");
   });
+
+  it("returns high for added file with zero commits and zero line shares (greenfield gate)", () => {
+    const result = characterizeFamiliarity(0, 0, null, 0, 0, REFERENCE_DATE, "added");
+    assert.equal(result.characterization, "high");
+    assert.equal(result.shareOfFileCommitChurn, 0);
+  });
+
+  it("returns none for modified file with zero pre-PR history", () => {
+    const result = characterizeFamiliarity(0, 5, null, 0, 0, REFERENCE_DATE, "modified");
+    assert.equal(result.characterization, "none");
+    assert.equal(result.shareOfFileCommitChurn, 0);
+  });
+
+  it("returns high for modified file with pre-PR single-rewrite", () => {
+    const result = characterizeFamiliarity(
+      1,
+      20,
+      daysAgo(10),
+      0.62,
+      0.41,
+      REFERENCE_DATE,
+      "modified"
+    );
+    assert.equal(result.characterization, "high");
+    assert.equal(result.shareOfFileCommitChurn, 0.05);
+  });
 });
 
 describe("analyzeFamiliarity characterization", () => {
