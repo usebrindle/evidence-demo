@@ -270,6 +270,24 @@ describe("buildEvidenceReport", () => {
     );
   });
 
+  it("states greenfield familiarity limitations for added files", () => {
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: [changedEntry("src/new.ts", "added")],
+      familiarity: [],
+      blastRadius: [],
+    });
+
+    assert.ok(
+      report.limitations.some(
+        (item) =>
+          item.includes("Files added in this PR are characterized as high (greenfield) by change kind") &&
+          item.includes("pre-PR signals are zero by definition") &&
+          item.includes("Renames may misclassify add/delete pairs")
+      )
+    );
+  });
+
   it("derives display paths from changed file entries regardless of change kind", () => {
     const report = buildEvidenceReport({
       author,
