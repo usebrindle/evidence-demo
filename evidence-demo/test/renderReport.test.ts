@@ -95,7 +95,7 @@ describe("renderReport", () => {
 
     assert.match(
       text,
-      /Author owns 62% of current lines and 41% of line churn in 6 months \(3 commits, last touch 10 days ago; 7 commits by others in window\)\./
+      /Author owned 62% of lines and 41% of line churn in 6 months before this PR \(3 commits, last touch 10 days ago; 7 commits by others in window\)\./
     );
   });
 
@@ -124,8 +124,9 @@ describe("renderReport", () => {
 
     const text = renderReport(report, plainRenderOptions);
 
-    assert.match(text, /Author has 2 commits to this file in 6 months \(40% of commit activity\)/);
+    assert.match(text, /Author had 2 commits to this file in 6 months before this PR \(40% of commit activity\)/);
     assert.doesNotMatch(text, /owns .*% of current lines/);
+    assert.doesNotMatch(text, /owned .*% of lines/);
   });
 
   it("renders familiarity with supporting numbers, not just labels", () => {
@@ -140,11 +141,11 @@ describe("renderReport", () => {
 
     assert.match(
       text,
-      /Author has 2 commits to this file in 6 months \(1\.1% of commit activity\), last touch 4 months ago; 180 commits by others in this window \(182 total\)\./
+      /Author had 2 commits to this file in 6 months before this PR \(1\.1% of commit activity\), last touch 4 months ago; 180 commits by others in this window \(182 total\)\./
     );
     assert.match(
       text,
-      /docs\/guide\.md — none[\s\S]*No author commits to this file in 6 months; 4 commits by others in this window\./
+      /docs\/guide\.md — none[\s\S]*No author commits to this file in 6 months before this PR; 4 commits by others in this window\./
     );
   });
 
@@ -249,7 +250,7 @@ describe("renderReport", () => {
     assert.match(text, /Familiarity\n-{11}/);
     assert.match(
       text,
-      /How much the author has worked on each changed file over the last 6 months\./
+      /How much the author worked on each changed file in the 6 months before this PR\./
     );
     assert.match(text, /Blast Radius\n-{12}/);
     assert.match(
@@ -286,7 +287,7 @@ describe("renderReport", () => {
 
     assert.match(
       text,
-      /package\.json — none[\s\S]*No author commits to this file in 6 months; 39 commits by others in this window\./
+      /package\.json — none[\s\S]*No author commits to this file in 6 months before this PR; 39 commits by others in this window\./
     );
   });
 

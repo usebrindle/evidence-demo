@@ -317,7 +317,7 @@ describe("runEvidenceDemo", () => {
       assert.match(output, /Changed files \(2\):/);
       assert.match(output, /Familiarity/);
       assert.match(output, /src\/foo\.ts — high/);
-      assert.match(output, /Author owns .* of current lines/);
+      assert.match(output, /Author owned .* of lines/);
       assert.match(output, /3 commits, last touch 20 days ago/);
       assert.match(output, /src\/bar\.ts — none/);
       assert.doesNotMatch(output, /src\/ —/);
@@ -525,7 +525,7 @@ describe("runEvidenceDemo", () => {
       assert.match(output, /Author: Alice Author <alice@example.com>/);
       assert.match(output, /Familiarity/);
       assert.match(output, /src\/rewrite\.ts — high/);
-      assert.match(output, /Author owns .* of current lines/);
+      assert.match(output, /Author owned .* of lines/);
       assert.match(output, /1 commit, last touch 10 days ago/);
       assert.match(output, /6 commits by others in window/);
     } finally {

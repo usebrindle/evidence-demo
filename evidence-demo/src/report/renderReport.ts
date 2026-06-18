@@ -165,11 +165,11 @@ function formatFileLabel(filePath: string): string {
 }
 
 function formatLineOwnershipLead(finding: FamiliarityFinding): string {
-  const ownership = `Author owns ${formatShare(finding.shareOfCurrentContent)} of current lines`;
+  const ownership = `Author owned ${formatShare(finding.shareOfCurrentContent)} of lines`;
   if (finding.totalChangedLineCount > 0) {
-    return `${ownership} and ${formatShare(finding.shareOfWindowedLineChurn)} of line churn in 6 months`;
+    return `${ownership} and ${formatShare(finding.shareOfWindowedLineChurn)} of line churn in 6 months before this PR`;
   }
-  return `${ownership} in 6 months`;
+  return `${ownership} in 6 months before this PR`;
 }
 
 function formatFamiliarityDetail(
@@ -200,9 +200,9 @@ function formatFamiliarityDetail(
     }
 
     if (othersCommitCount === 0) {
-      return "No author commits to this file in 6 months.";
+      return "No author commits to this file in 6 months before this PR.";
     }
-    return `No author commits to this file in 6 months; ${othersPhrase} in this window.`;
+    return `No author commits to this file in 6 months before this PR; ${othersPhrase} in this window.`;
   }
 
   const authorCommitsPhrase =
@@ -226,7 +226,7 @@ function formatFamiliarityDetail(
   }
 
   if (othersCommitCount === 0) {
-    return `Author has ${authorCommitsPhrase} to this file in 6 months (sole contributor in window), ${lastTouchPhrase}.`;
+    return `Author had ${authorCommitsPhrase} to this file in 6 months before this PR (sole contributor in window), ${lastTouchPhrase}.`;
   }
 
   const commitActivityPhrase =
@@ -238,7 +238,7 @@ function formatFamiliarityDetail(
       ? "1 commit by others"
       : `${othersCommitCount} commits by others`;
 
-  return `Author has ${authorCommitsPhrase} to this file in 6 months${commitActivityPhrase}, ${lastTouchPhrase}; ${othersPhrase} in this window (${finding.totalFileCommitCount} total).`;
+  return `Author had ${authorCommitsPhrase} to this file in 6 months before this PR${commitActivityPhrase}, ${lastTouchPhrase}; ${othersPhrase} in this window (${finding.totalFileCommitCount} total).`;
 }
 
 function renderFamiliarityFinding(
@@ -383,7 +383,7 @@ export function renderReport(
     palette.sectionHeader("Familiarity"),
     palette.sectionHeader("-----------"),
     palette.sectionContext(
-      "  How much the author has worked on each changed file over the last 6 months."
+      "  How much the author worked on each changed file in the 6 months before this PR."
     )
   );
 
