@@ -160,11 +160,11 @@ describe("renderReport", () => {
 
     assert.match(
       text,
-      /src\/util\.ts — broad[\s\S]*Depended on by 34 modules, including src\/a\.ts, src\/b\.ts, src\/c\.ts, src\/d\.ts, src\/e\.ts \(and 29 more\)\./
+      /src\/util\.ts — broad[\s\S]*Depended on by 34 files, including src\/a\.ts, src\/b\.ts, src\/c\.ts, src\/d\.ts, src\/e\.ts \(and 29 more\)\./
     );
     assert.match(
       text,
-      /src\/isolated\.ts — isolated[\s\S]*Depended on by no modules\./
+      /src\/isolated\.ts — isolated[\s\S]*Depended on by no files\./
     );
   });
 
@@ -188,7 +188,7 @@ describe("renderReport", () => {
 
     assert.match(
       text,
-      /src\/input\.ts — broad[\s\S]*Reach: 12 modules transitively \(1 direct importer\), including src\/form\.ts\./
+      /src\/input\.ts — broad[\s\S]*Reach: 12 files transitively \(1 direct importer\), including src\/form\.ts\./
     );
   });
 
@@ -210,7 +210,59 @@ describe("renderReport", () => {
     assert.doesNotMatch(text, /^Recommendation:/im);
   });
 
-  it("lists non-analyzable changed files with a JS/TS-only note", () => {
+  it("renders mixed JS/TS and stylesheet copy with files wording", () => {
+    const mixedFinding: BlastRadiusFinding = {
+      changedFile: "src/_tokens.scss",
+      directDependentCount: 3,
+      directDependents: [
+        "src/App.tsx",
+        "src/components/Header.scss",
+        "src/theme.scss",
+      ],
+      transitiveReachCount: 3,
+      characterization: "moderate",
+    };
+
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["src/_tokens.scss"],
+      familiarity: [],
+      blastRadius: [mixedFinding],
+    });
+
+    const text = renderReport(report, plainRenderOptions);
+
+    assert.match(
+      text,
+      /src\/_tokens\.scss — moderate[\s\S]*Depended on by 3 files, including src\/App\.tsx, src\/components\/Header\.scss, src\/theme\.scss\./
+    );
+  });
+
+  it("renders divergent stylesheet transitive reach with files wording", () => {
+    const divergentFinding: BlastRadiusFinding = {
+      changedFile: "src/_tokens.scss",
+      directDependentCount: 1,
+      directDependents: ["src/theme.scss"],
+      transitiveReachCount: 42,
+      characterization: "broad",
+    };
+
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["src/_tokens.scss"],
+      familiarity: [],
+      blastRadius: [divergentFinding],
+    });
+
+    const text = renderReport(report, plainRenderOptions);
+
+    assert.match(
+      text,
+      /src\/_tokens\.scss — broad[\s\S]*Reach: 42 files transitively \(1 direct importer\), including src\/theme\.scss\./
+    );
+  });
+
+  it("lists non-analyzable changed files with a JS/TS and stylesheet note", () => {
     const report = buildEvidenceReport({
       author,
       changedFiles: ["src/util.ts", "README.md", "package.json"],
@@ -223,7 +275,7 @@ describe("renderReport", () => {
     assert.match(text, /Not Analyzed for Blast Radius/);
     assert.match(
       text,
-      /Blast-radius analysis covers JavaScript\/TypeScript source files only\./
+      /Blast-radius analysis covers JavaScript, TypeScript, CSS, SCSS, and Sass source files only\./
     );
     assert.match(text, /README\.md/);
     assert.match(text, /package\.json/);
@@ -254,7 +306,7 @@ describe("renderReport", () => {
     assert.match(text, /Blast Radius\n-{12}/);
     assert.match(
       text,
-      /Direct static import and require\(\) dependents of each changed JavaScript or TypeScript source file\./
+      /Static reverse-dependency reach \(direct and transitive\) for each changed JavaScript, TypeScript, CSS, SCSS, or Sass source file\./
     );
     assert.ok(text.endsWith(report.limitations.at(-1)!));
   });

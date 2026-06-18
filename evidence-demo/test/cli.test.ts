@@ -136,9 +136,9 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /2 commits, last touch 10 days ago/);
     assert.match(output, /Blast Radius/);
     assert.match(output, /src\/auth\.ts — isolated/);
-    assert.match(output, /Depended on by 2 modules, including src\/login\.ts, src\/signup\.ts/);
+    assert.match(output, /Depended on by 2 files, including src\/login\.ts, src\/signup\.ts/);
     assert.match(output, /Limitations/);
-    assert.doesNotMatch(output, /no analyzable JS\/TS changed files to analyze/);
+    assert.doesNotMatch(output, /no analyzable JS\/TS or stylesheet changed files to analyze/);
   });
 
   it("prints a complete report for a branch name", () => {
@@ -150,7 +150,7 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /src\/auth\.ts —/);
     assert.match(output, /Changed files \(3\):/);
     assert.match(output, /src\/auth\.ts — isolated/);
-    assert.match(output, /Depended on by 2 modules/);
+    assert.match(output, /Depended on by 2 files/);
   });
 
   it("lists non-analyzable changed files under not-analyzed for blast radius", () => {
@@ -171,7 +171,7 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /docs\/guide\.md/);
     assert.match(
       output,
-      /Blast-radius analysis covers JavaScript\/TypeScript source files only/
+      /Blast-radius analysis covers JavaScript, TypeScript, CSS, SCSS, and Sass source files only/
     );
     assert.match(output, /src\/auth\.ts — isolated/);
   });
@@ -225,7 +225,7 @@ describe("runEvidenceDemo", () => {
       assert.match(output, /src\/core\.js —/);
       assert.match(output, /Blast Radius/);
       assert.match(output, /src\/core\.js — moderate/);
-      assert.match(output, /Depended on by 3 modules/);
+      assert.match(output, /Depended on by 3 files/);
       assert.match(output, /Limitations/);
       assert.doesNotMatch(output, /Not Analyzed for Blast Radius/);
     } finally {
@@ -377,7 +377,7 @@ describe("runEvidenceDemo", () => {
       assert.match(output, /src\/core\.js — isolated/);
       assert.match(
         output,
-        /Depended on by 2 modules, including src\/a\.js, src\/b\.js/
+        /Depended on by 2 files, including src\/a\.js, src\/b\.js/
       );
       assert.doesNotMatch(output, /Not Analyzed for Blast Radius/);
     } finally {
@@ -439,7 +439,7 @@ describe("runEvidenceDemo", () => {
       assert.match(output, /src\/input\.ts — broad/);
       assert.match(
         output,
-        /Reach: 12 modules transitively \(1 direct importer\), including src\/form\.ts\./
+        /Reach: 12 files transitively \(1 direct importer\), including src\/form\.ts\./
       );
       assert.doesNotMatch(output, /Not Analyzed for Blast Radius/);
     } finally {
@@ -576,7 +576,7 @@ describe("runEvidenceDemo", () => {
       assert.match(output, /src\/core\.ts —/);
       assert.match(output, /Blast Radius/);
       assert.match(output, /src\/core\.ts — moderate/);
-      assert.match(output, /Depended on by 3 modules/);
+      assert.match(output, /Depended on by 3 files/);
       assert.match(output, /Limitations/);
       assert.doesNotMatch(output, /Not Analyzed for Blast Radius/);
     } finally {

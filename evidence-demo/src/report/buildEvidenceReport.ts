@@ -43,6 +43,8 @@ export function buildEvidenceReport(
     notAnalyzedForBlastRadius,
     limitations: [
       "Transitive reach and direct dependent counts follow static ESM import and static-literal CommonJS require() chains; dynamic require(), runtime indirection, and non-literal dynamic import() are not counted; non-source files are excluded.",
+      "Stylesheet reach follows static @import, @use, and @forward with quoted specifiers and JS/TS static import/require of stylesheet paths; HTML <link> tags, CSS-in-JS, built-in sass:* modules, package imports without root path config, and platform-specific stylesheet wiring are not counted.",
+      "Indented .sass syntax may be excluded until Slice 3b is implemented; SCSS and CSS are in scope.",
       "On platforms with non-import/require wiring (e.g. SFCC cartridge paths), blast-radius counts may be a lower bound.",
       "Path aliases are resolved only from the repository root tsconfig.json or jsconfig.json (compilerOptions.paths / baseUrl). Aliases defined only in bundler config (e.g. Vite, Webpack) or nested package configs are not applied.",
       "Familiarity uses git blame at PR head for current content ownership and windowed line churn; commit counts and recency come from git log. Commit-share is reported separately and is not a substitute for line ownership.",
