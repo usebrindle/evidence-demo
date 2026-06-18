@@ -131,7 +131,7 @@ export function characterizeFamiliarity(
   }
 
   const qualifiesForModerate =
-    (recencyDays <= 120 && authorCommitCount >= 1) ||
+    (recencyDays <= 120 && authorCommitCount >= 2) ||
     (recencyDays > 120 &&
       recencyDays <= 180 &&
       authorCommitCount >= 2) ||

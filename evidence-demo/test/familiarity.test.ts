@@ -415,14 +415,19 @@ describe("characterizeFamiliarity", () => {
     assert.equal(result.characterization, "high");
   });
 
-  it("returns moderate when recent with one commit and low line shares", () => {
+  it("returns none when recent with one commit and low line shares", () => {
     const result = characterizeFamiliarity(1, 20, daysAgo(90), 0, 0, REFERENCE_DATE);
-    assert.equal(result.characterization, "moderate");
+    assert.equal(result.characterization, "none");
     assert.equal(result.shareOfFileCommitChurn, 0.05);
   });
 
   it("returns moderate when recent with moderate line ownership below high threshold", () => {
     const result = characterizeFamiliarity(1, 10, daysAgo(90), 0.15, 0, REFERENCE_DATE);
+    assert.equal(result.characterization, "moderate");
+  });
+
+  it("returns moderate for two commits within 120 days and low line shares", () => {
+    const result = characterizeFamiliarity(2, 10, daysAgo(30), 0, 0, REFERENCE_DATE);
     assert.equal(result.characterization, "moderate");
   });
 
@@ -580,7 +585,7 @@ describe("analyzeFamiliarity characterization", () => {
     assert.equal(findings[0]?.authorCommitCount, 1);
     assert.equal(findings[0]?.totalFileCommitCount, 2);
     assert.equal(findings[0]?.shareOfFileCommitChurn, 0.5);
-    assert.equal(findings[0]?.characterization, "moderate");
+    assert.equal(findings[0]?.characterization, "none");
     assert.deepEqual(findings[0]?.lastTouchDate, daysAgo(20));
   });
 
