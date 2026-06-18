@@ -448,6 +448,59 @@ describe("runEvidenceDemo", () => {
     }
   });
 
+  it("shows high familiarity with greenfield copy when the PR adds a new file", () => {
+    const greenfieldRepo = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-greenfield-e2e-")
+    );
+    try {
+      git(greenfieldRepo, ["init"]);
+      git(greenfieldRepo, ["config", "user.name", "Setup"]);
+      git(greenfieldRepo, ["config", "user.email", "setup@example.com"]);
+
+      writeRepoFile(
+        greenfieldRepo,
+        "src/existing.ts",
+        "export const existing = 1;\n"
+      );
+      commitAs(
+        greenfieldRepo,
+        { name: "Bob Builder", email: "bob@example.com" },
+        daysAgo(150),
+        "bob creates existing file"
+      );
+      const base = git(greenfieldRepo, ["rev-parse", "HEAD"]);
+
+      writeRepoFile(
+        greenfieldRepo,
+        "src/newModule.ts",
+        "export const created = true;\n"
+      );
+      commitAs(
+        greenfieldRepo,
+        { name: "Alice Author", email: "alice@example.com" },
+        daysAgo(5),
+        "alice adds new module"
+      );
+      const head = git(greenfieldRepo, ["rev-parse", "HEAD"]);
+
+      const output = runEvidenceDemo(greenfieldRepo, `${base}...${head}`, {
+        asOf: REFERENCE_DATE,
+      });
+
+      assert.match(output, /Author: Alice Author <alice@example.com>/);
+      assert.match(output, /Familiarity/);
+      assert.match(output, /src\/newModule\.ts — high/);
+      assert.match(
+        output,
+        /File added in this PR; no prior history on this path\. Author is the sole contributor in this change\./
+      );
+      assert.doesNotMatch(output, /src\/newModule\.ts — none/);
+      assert.doesNotMatch(output, /Author owned 0% of lines before this PR/);
+    } finally {
+      rmSync(greenfieldRepo, { recursive: true, force: true });
+    }
+  });
+
   it("shows none familiarity when the author's only history on a file is the PR itself", () => {
     const firstTouchRepo = mkdtempSync(
       path.join(os.tmpdir(), "evidence-demo-first-touch-e2e-")
