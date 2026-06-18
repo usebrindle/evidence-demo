@@ -79,6 +79,8 @@ describe("resolveChangedFiles", () => {
     assert.equal(result.author.email, "alice@example.com");
     assertValidSha(result.headRevision);
     assert.equal(result.headRevision, featureCommit);
+    assertValidSha(result.baseRevision);
+    assert.equal(result.baseRevision, mainCommit);
   });
 
   it("resolves a branch name against the default branch", () => {
@@ -94,6 +96,8 @@ describe("resolveChangedFiles", () => {
     assert.equal(result.author.email, "alice@example.com");
     assertValidSha(result.headRevision);
     assert.equal(result.headRevision, featureCommit);
+    assertValidSha(result.baseRevision);
+    assert.equal(result.baseRevision, mainCommit);
   });
 
   it("resolves a locally available pull request ref", () => {
@@ -109,6 +113,8 @@ describe("resolveChangedFiles", () => {
     assert.equal(result.author.name, "Alice Author");
     assertValidSha(result.headRevision);
     assert.equal(result.headRevision, featureCommit);
+    assertValidSha(result.baseRevision);
+    assert.equal(result.baseRevision, mainCommit);
   });
 
   it("returns an empty list when the range has no file changes", () => {
@@ -121,5 +127,7 @@ describe("resolveChangedFiles", () => {
     assert.equal(result.author.email, "alice@example.com");
     assertValidSha(result.headRevision);
     assert.equal(result.headRevision, mainCommit);
+    assertValidSha(result.baseRevision);
+    assert.equal(result.baseRevision, mainCommit);
   });
 });
