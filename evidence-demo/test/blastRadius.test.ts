@@ -689,3 +689,40 @@ describe("analyzeBlastRadius require() integration", () => {
     }
   });
 });
+
+describe("analyzeBlastRadius CSS @import integration", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-blast-radius-css-import-")
+    );
+
+    writeRepoFile(repoPath, "styles/base.css", ".btn { color: red; }\n");
+    writeRepoFile(
+      repoPath,
+      "styles/app.css",
+      "@import './base.css';\n\n.app { padding: 1rem; }\n"
+    );
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("produces findings for changed stylesheet files from CSS @import graph", () => {
+    const graph = createImportGraph(repoPath);
+
+    const findings = analyzeBlastRadius({
+      changedFiles: ["styles/base.css"],
+      importGraph: graph,
+    });
+
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].changedFile, "styles/base.css");
+    assert.equal(findings[0].directDependentCount, 1);
+    assert.equal(findings[0].transitiveReachCount, 1);
+    assert.equal(findings[0].characterization, "isolated");
+    assert.deepEqual(findings[0].directDependents, ["styles/app.css"]);
+  });
+});

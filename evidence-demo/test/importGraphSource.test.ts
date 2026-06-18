@@ -9,6 +9,7 @@ import {
   createImportGraph,
   isAnalyzableSourceFile,
 } from "../src/inputs/importGraphSource.js";
+import { countDirectImportersForFile } from "../src/analyzers/blastRadius.js";
 
 function writeRepoFile(
   repoPath: string,
@@ -457,5 +458,100 @@ describe("createImportGraph stylesheet discovery", () => {
     const graph = createImportGraph(repoPath);
 
     assert.equal(graph.size, 0);
+  });
+});
+
+describe("createImportGraph CSS @import", () => {
+  describe("quoted @import", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-css-import-")
+      );
+
+      writeRepoFile(repoPath, "styles/base.css", ".btn { color: red; }\n");
+      writeRepoFile(
+        repoPath,
+        "styles/app.css",
+        "@import './base.css';\n\n.app { padding: 1rem; }\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("creates reverse edge from base.css to app.css for @import './base.css'", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/base.css"), ["styles/app.css"]);
+    });
+
+    it("direct dependent count on changed base.css is 1", () => {
+      const graph = createImportGraph(repoPath);
+
+      const result = countDirectImportersForFile("styles/base.css", graph);
+
+      assert.equal(result.dependentCount, 1);
+      assert.deepEqual(result.dependents, ["styles/app.css"]);
+    });
+  });
+
+  describe("@import url()", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-css-import-url-")
+      );
+
+      writeRepoFile(repoPath, "styles/base.css", ".btn { color: red; }\n");
+      writeRepoFile(
+        repoPath,
+        "styles/app.css",
+        "@import url('./base.css');\n\n.app { padding: 1rem; }\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("creates the same reverse edge for @import url('./base.css')", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/base.css"), ["styles/app.css"]);
+    });
+  });
+
+  describe("extensionless resolution", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(
+          os.tmpdir(),
+          "evidence-demo-import-graph-css-import-extensionless-"
+        )
+      );
+
+      writeRepoFile(repoPath, "styles/theme.scss", "$color: blue;\n");
+      writeRepoFile(
+        repoPath,
+        "styles/app.css",
+        '@import "./theme";\n\n.app { color: black; }\n'
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("resolves extensionless specifiers to .css, .scss, and .sass targets", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/theme.scss"), ["styles/app.css"]);
+    });
   });
 });

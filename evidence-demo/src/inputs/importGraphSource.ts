@@ -5,6 +5,7 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import postcss from "postcss";
 import ts from "typescript";
 
 export type ImportGraph = ReadonlyMap<string, readonly string[]>;
@@ -117,6 +118,32 @@ function resolveRelativeModule(
     `${relativeBase}/index.jsx`,
     `${relativeBase}/index.mjs`,
     `${relativeBase}/index.cjs`,
+  ];
+
+  for (const candidate of candidates) {
+    const full = path.join(repoPath, candidate);
+    if (existsSync(full) && statSync(full).isFile()) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function resolveRelativeStylesheetModule(
+  repoPath: string,
+  importerRelativePath: string,
+  specifier: string
+): string | null {
+  const importerDir = path.dirname(path.join(repoPath, importerRelativePath));
+  const joined = path.resolve(importerDir, specifier);
+  const relativeBase = normalizeRepoPath(path.relative(repoPath, joined));
+
+  const candidates = [
+    relativeBase,
+    `${relativeBase}.css`,
+    `${relativeBase}.scss`,
+    `${relativeBase}.sass`,
   ];
 
   for (const candidate of candidates) {
@@ -269,6 +296,75 @@ function extractImportSpecifiers(
   return specifiers;
 }
 
+function extractStaticQuotedPathFromImportParams(params: string): string | null {
+  const trimmed = params.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  const urlMatch = trimmed.match(/^url\s*\(\s*(['"])([^'"]+)\1\s*\)/i);
+  if (urlMatch) {
+    return urlMatch[2];
+  }
+
+  if (trimmed.startsWith("'") || trimmed.startsWith('"')) {
+    const quote = trimmed[0];
+    const endQuote = trimmed.indexOf(quote, 1);
+    if (endQuote > 1) {
+      return trimmed.slice(1, endQuote);
+    }
+  }
+
+  return null;
+}
+
+function extractStylesheetImportSpecifiers(
+  sourceText: string,
+  filePath: string
+): string[] {
+  try {
+    const root = postcss.parse(sourceText, { from: filePath });
+    const specifiers: string[] = [];
+
+    root.walkAtRules("import", (rule) => {
+      const specifier = extractStaticQuotedPathFromImportParams(rule.params);
+      if (specifier !== null) {
+        specifiers.push(specifier);
+      }
+    });
+
+    return specifiers;
+  } catch {
+    return [];
+  }
+}
+
+function resolveStylesheetModule(
+  repoPath: string,
+  importerRelativePath: string,
+  specifier: string
+): string | null {
+  if (specifier.startsWith(".")) {
+    return resolveRelativeStylesheetModule(
+      repoPath,
+      importerRelativePath,
+      specifier
+    );
+  }
+
+  return null;
+}
+
+function addImporterEdge(
+  graph: Map<string, Set<string>>,
+  target: string,
+  importer: string
+): void {
+  const importers = graph.get(target) ?? new Set<string>();
+  importers.add(importer);
+  graph.set(target, importers);
+}
+
 export function createImportGraph(repoPath: string): ImportGraph {
   const resolvedRepo = path.resolve(repoPath);
   const compilerOptions = loadCompilerOptions(resolvedRepo);
@@ -276,13 +372,27 @@ export function createImportGraph(repoPath: string): ImportGraph {
   const graph = new Map<string, Set<string>>();
 
   for (const file of sourceFiles) {
+    const fullPath = path.join(resolvedRepo, file);
+    const sourceText = readFileSync(fullPath, "utf8");
+
     if (isStylesheetFile(file)) {
-      // Stylesheet @import/@use/@forward parsing added in US-002+
+      if (!file.endsWith(".css")) {
+        // SCSS @use/@forward parsing added in US-003
+        continue;
+      }
+
+      const specifiers = extractStylesheetImportSpecifiers(sourceText, file);
+      for (const specifier of specifiers) {
+        const target = resolveStylesheetModule(resolvedRepo, file, specifier);
+        if (target === null) {
+          continue;
+        }
+
+        addImporterEdge(graph, target, file);
+      }
       continue;
     }
 
-    const fullPath = path.join(resolvedRepo, file);
-    const sourceText = readFileSync(fullPath, "utf8");
     const specifiers = extractImportSpecifiers(sourceText, file);
 
     for (const specifier of specifiers) {
@@ -291,9 +401,7 @@ export function createImportGraph(repoPath: string): ImportGraph {
         continue;
       }
 
-      const importers = graph.get(target) ?? new Set<string>();
-      importers.add(file);
-      graph.set(target, importers);
+      addImporterEdge(graph, target, file);
     }
   }
 
