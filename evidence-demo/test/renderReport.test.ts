@@ -35,20 +35,22 @@ const sampleFamiliarity: FamiliarityFinding[] = [
 const sampleBlastRadius: BlastRadiusFinding[] = [
   {
     changedFile: "src/util.ts",
-    dependentCount: 34,
-    dependents: [
+    directDependentCount: 34,
+    directDependents: [
       "src/a.ts",
       "src/b.ts",
       "src/c.ts",
       "src/d.ts",
       "src/e.ts",
     ],
+    transitiveReachCount: 34,
     characterization: "broad",
   },
   {
     changedFile: "src/isolated.ts",
-    dependentCount: 0,
-    dependents: [],
+    directDependentCount: 0,
+    directDependents: [],
+    transitiveReachCount: 0,
     characterization: "isolated",
   },
 ];
@@ -91,6 +93,30 @@ describe("renderReport", () => {
     assert.match(
       text,
       /src\/isolated\.ts — isolated[\s\S]*Depended on by no modules\./
+    );
+  });
+
+  it("renders divergent transitive reach copy when direct and transitive counts differ", () => {
+    const divergentFinding: BlastRadiusFinding = {
+      changedFile: "src/input.ts",
+      directDependentCount: 1,
+      directDependents: ["src/form.ts"],
+      transitiveReachCount: 12,
+      characterization: "broad",
+    };
+
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["src/input.ts"],
+      familiarity: [],
+      blastRadius: [divergentFinding],
+    });
+
+    const text = renderReport(report, plainRenderOptions);
+
+    assert.match(
+      text,
+      /src\/input\.ts — broad[\s\S]*Reach: 12 modules transitively \(1 direct importer\), including src\/form\.ts\./
     );
   });
 
@@ -191,7 +217,16 @@ describe("renderReport", () => {
       author,
       changedFiles: ["src/util.ts", "src/isolated.ts", "docs/guide.md"],
       familiarity: sampleFamiliarity,
-      blastRadius: sampleBlastRadius,
+      blastRadius: [
+        ...sampleBlastRadius,
+        {
+          changedFile: "src/other-broad.ts",
+          directDependentCount: 2,
+          directDependents: ["src/x.ts", "src/y.ts"],
+          transitiveReachCount: 50,
+          characterization: "broad",
+        },
+      ],
     });
 
     const text = renderReport(report, plainRenderOptions);
@@ -200,6 +235,7 @@ describe("renderReport", () => {
       text.split("Blast Radius")[1]?.split("Limitations")[0] ?? "";
 
     assert.ok(familiaritySection.indexOf("docs/guide.md — none") < familiaritySection.indexOf("src/util.ts — moderate"));
+    assert.ok(blastSection.indexOf("src/other-broad.ts — broad") < blastSection.indexOf("src/util.ts — broad"));
     assert.ok(blastSection.indexOf("src/util.ts — broad") < blastSection.indexOf("src/isolated.ts — isolated"));
   });
 

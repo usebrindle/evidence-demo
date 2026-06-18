@@ -32,8 +32,9 @@ const sampleFamiliarity: FamiliarityFinding[] = [
 const sampleBlastRadius: BlastRadiusFinding[] = [
   {
     changedFile: "src/util.ts",
-    dependentCount: 4,
-    dependents: ["src/a.ts", "src/b.ts"],
+    directDependentCount: 4,
+    directDependents: ["src/a.ts", "src/b.ts"],
+    transitiveReachCount: 4,
     characterization: "moderate",
   },
 ];
@@ -83,7 +84,7 @@ describe("buildEvidenceReport", () => {
     );
   });
 
-  it("retains dependent count and named dependents on blast-radius findings", () => {
+  it("retains direct dependent count and named direct dependents on blast-radius findings", () => {
     const report = buildEvidenceReport({
       author,
       changedFiles: ["src/util.ts"],
@@ -93,8 +94,9 @@ describe("buildEvidenceReport", () => {
 
     assert.equal(report.blastRadius.length, 1);
     const finding = report.blastRadius[0];
-    assert.equal(finding.dependentCount, 4);
-    assert.deepEqual(finding.dependents, ["src/a.ts", "src/b.ts"]);
+    assert.equal(finding.directDependentCount, 4);
+    assert.equal(finding.transitiveReachCount, 4);
+    assert.deepEqual(finding.directDependents, ["src/a.ts", "src/b.ts"]);
     assert.equal(finding.characterization, "moderate");
   });
 
@@ -127,8 +129,9 @@ describe("buildEvidenceReport", () => {
     const jsBlastRadius: BlastRadiusFinding[] = [
       {
         changedFile: "src/util.js",
-        dependentCount: 2,
-        dependents: ["src/a.js", "src/b.jsx"],
+        directDependentCount: 2,
+        directDependents: ["src/a.js", "src/b.jsx"],
+        transitiveReachCount: 2,
         characterization: "isolated",
       },
     ];
@@ -161,7 +164,16 @@ describe("buildEvidenceReport", () => {
 
     assert.ok(report.limitations.length >= 3);
     assert.ok(
-      report.limitations.some((item) => item.includes("transitive dependency"))
+      report.limitations.some(
+        (item) =>
+          item.includes("Transitive reach") &&
+          item.includes("static ESM import and static-literal CommonJS require()")
+      )
+    );
+    assert.ok(
+      report.limitations.every(
+        (item) => !item.includes("transitive dependency impact is not computed")
+      )
     );
     assert.ok(
       report.limitations.some((item) =>

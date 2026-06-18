@@ -383,6 +383,68 @@ describe("runEvidenceDemo", () => {
     }
   });
 
+  it("surfaces transitive reach on a deep dependency chain with divergent copy", () => {
+    const chainRepo = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-transitive-chain-e2e-")
+    );
+    try {
+      git(chainRepo, ["init"]);
+      git(chainRepo, ["config", "user.name", "Setup"]);
+      git(chainRepo, ["config", "user.email", "setup@example.com"]);
+
+      writeRepoFile(chainRepo, "src/input.ts", "export const input = 1;\n");
+      writeRepoFile(
+        chainRepo,
+        "src/form.ts",
+        "import { input } from './input';\nexport const form = input;\n"
+      );
+      writeRepoFile(
+        chainRepo,
+        "src/header.ts",
+        "import { form } from './form';\nexport const header = form;\n"
+      );
+      const pageCount = 10;
+      for (let index = 0; index < pageCount; index += 1) {
+        writeRepoFile(
+          chainRepo,
+          `src/pages/page${index}.tsx`,
+          "import { header } from '../header';\nexport const page = header;\n"
+        );
+      }
+      commitAs(
+        chainRepo,
+        { name: "Carol Core", email: "carol@example.com" },
+        daysAgo(90),
+        "init deep chain"
+      );
+      const base = git(chainRepo, ["rev-parse", "HEAD"]);
+
+      writeRepoFile(chainRepo, "src/input.ts", "export const input = 2;\n");
+      commitAs(
+        chainRepo,
+        { name: "Dev User", email: "dev@example.com" },
+        daysAgo(15),
+        "dev updates input leaf"
+      );
+      const head = git(chainRepo, ["rev-parse", "HEAD"]);
+
+      const output = runEvidenceDemo(chainRepo, `${base}...${head}`, {
+        asOf: REFERENCE_DATE,
+      });
+
+      assert.match(output, /Author: Dev User <dev@example.com>/);
+      assert.match(output, /Blast Radius/);
+      assert.match(output, /src\/input\.ts — broad/);
+      assert.match(
+        output,
+        /Reach: 12 modules transitively \(1 direct importer\), including src\/form\.ts\./
+      );
+      assert.doesNotMatch(output, /Not Analyzed for Blast Radius/);
+    } finally {
+      rmSync(chainRepo, { recursive: true, force: true });
+    }
+  });
+
   it("produces a complete end-to-end report against a TypeScript repo with importers", () => {
     const e2eRepo = mkdtempSync(path.join(os.tmpdir(), "evidence-demo-e2e-"));
     try {

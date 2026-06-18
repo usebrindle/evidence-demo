@@ -220,25 +220,55 @@ function renderFamiliarityFinding(
   ];
 }
 
+function formatDirectImporterPhrase(directDependentCount: number): string {
+  return directDependentCount === 1
+    ? "1 direct importer"
+    : `${directDependentCount} direct importers`;
+}
+
 function formatDependentSample(finding: BlastRadiusFinding): string {
-  if (finding.dependentCount === 0) {
-    return "Depended on by no modules.";
+  const {
+    directDependentCount,
+    directDependents,
+    transitiveReachCount,
+  } = finding;
+
+  if (transitiveReachCount === directDependentCount) {
+    if (directDependentCount === 0) {
+      return "Depended on by no modules.";
+    }
+
+    const moduleWord = directDependentCount === 1 ? "module" : "modules";
+    const remaining = directDependentCount - directDependents.length;
+
+    if (directDependents.length === 0) {
+      return `Depended on by ${directDependentCount} ${moduleWord}.`;
+    }
+
+    const listed = directDependents.join(", ");
+    if (remaining <= 0) {
+      return `Depended on by ${directDependentCount} ${moduleWord}, including ${listed}.`;
+    }
+
+    const moreWord = remaining === 1 ? "1 more" : `${remaining} more`;
+    return `Depended on by ${directDependentCount} ${moduleWord}, including ${listed} (and ${moreWord}).`;
   }
 
-  const moduleWord = finding.dependentCount === 1 ? "module" : "modules";
-  const remaining = finding.dependentCount - finding.dependents.length;
+  const transitiveWord = transitiveReachCount === 1 ? "module" : "modules";
+  const prefix = `Reach: ${transitiveReachCount} ${transitiveWord} transitively (${formatDirectImporterPhrase(directDependentCount)})`;
+  const remaining = directDependentCount - directDependents.length;
 
-  if (finding.dependents.length === 0) {
-    return `Depended on by ${finding.dependentCount} ${moduleWord}.`;
+  if (directDependents.length === 0) {
+    return `${prefix}.`;
   }
 
-  const listed = finding.dependents.join(", ");
+  const listed = directDependents.join(", ");
   if (remaining <= 0) {
-    return `Depended on by ${finding.dependentCount} ${moduleWord}, including ${listed}.`;
+    return `${prefix}, including ${listed}.`;
   }
 
   const moreWord = remaining === 1 ? "1 more" : `${remaining} more`;
-  return `Depended on by ${finding.dependentCount} ${moduleWord}, including ${listed} (and ${moreWord}).`;
+  return `${prefix}, including ${listed} (and ${moreWord}).`;
 }
 
 function renderBlastRadiusFinding(
@@ -292,7 +322,8 @@ export function renderReport(
     (a, b) =>
       BLAST_RADIUS_ORDER[a.characterization] -
         BLAST_RADIUS_ORDER[b.characterization] ||
-      b.dependentCount - a.dependentCount ||
+      b.transitiveReachCount - a.transitiveReachCount ||
+      b.directDependentCount - a.directDependentCount ||
       a.changedFile.localeCompare(b.changedFile)
   );
 

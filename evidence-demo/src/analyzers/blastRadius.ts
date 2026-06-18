@@ -12,8 +12,9 @@ export type BlastRadiusCharacterization = "isolated" | "moderate" | "broad";
 
 export interface BlastRadiusFinding {
   changedFile: string;
-  dependentCount: number;
-  dependents: readonly string[];
+  directDependentCount: number;
+  directDependents: readonly string[];
+  transitiveReachCount: number;
   characterization: BlastRadiusCharacterization;
 }
 
@@ -25,6 +26,10 @@ export interface BlastRadiusInput {
 export interface DirectImporterResult {
   dependentCount: number;
   dependents: readonly string[];
+}
+
+export interface TransitiveReachResult {
+  transitiveReachCount: number;
 }
 
 /**
@@ -45,20 +50,52 @@ export function countDirectImportersForFile(
   };
 }
 
-/** Max dependent paths included in a finding; full count stays in dependentCount. */
+/**
+ * Slice 5: count all unique ancestor modules that depend on a changed file,
+ * walking upward through the reverse-dependency graph (direct importers and
+ * their importers). Excludes the changed file from the count.
+ */
+export function countTransitiveReachForFile(
+  changedFile: string,
+  importGraph: ImportGraph
+): TransitiveReachResult {
+  const normalized = changedFile.replace(/\\/g, "/");
+  const visited = new Set<string>();
+  const queue: string[] = [...(importGraph.get(normalized) ?? [])];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+
+    if (current === normalized || visited.has(current)) {
+      continue;
+    }
+
+    visited.add(current);
+
+    for (const importer of importGraph.get(current) ?? []) {
+      if (importer !== normalized && !visited.has(importer)) {
+        queue.push(importer);
+      }
+    }
+  }
+
+  return { transitiveReachCount: visited.size };
+}
+
+/** Max direct-dependent paths included in a finding; full count stays in directDependentCount. */
 export const DEPENDENT_SAMPLE_SIZE = 5;
 
 /**
- * Slice 2: characterize blast radius from direct dependent count.
+ * Slice 2 / Slice 5: characterize blast radius from reach count (transitive reach).
  * isolated: 0-2, moderate: 3-10, broad: 11+.
  */
 export function characterizeBlastRadius(
-  dependentCount: number
+  reachCount: number
 ): BlastRadiusCharacterization {
-  if (dependentCount <= 2) {
+  if (reachCount <= 2) {
     return "isolated";
   }
-  if (dependentCount <= 10) {
+  if (reachCount <= 10) {
     return "moderate";
   }
   return "broad";
@@ -83,12 +120,17 @@ export function analyzeBlastRadius(input: BlastRadiusInput): BlastRadiusFinding[
         changedFile,
         input.importGraph
       );
+      const { transitiveReachCount } = countTransitiveReachForFile(
+        changedFile,
+        input.importGraph
+      );
 
       return {
         changedFile: changedFile.replace(/\\/g, "/"),
-        dependentCount,
-        dependents: sampleDependents(dependents),
-        characterization: characterizeBlastRadius(dependentCount),
+        directDependentCount: dependentCount,
+        directDependents: sampleDependents(dependents),
+        transitiveReachCount,
+        characterization: characterizeBlastRadius(transitiveReachCount),
       };
     });
 }
