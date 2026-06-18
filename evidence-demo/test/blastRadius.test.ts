@@ -726,3 +726,44 @@ describe("analyzeBlastRadius CSS @import integration", () => {
     assert.deepEqual(findings[0].directDependents, ["styles/app.css"]);
   });
 });
+
+describe("analyzeBlastRadius JS/TS to stylesheet integration", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-blast-radius-js-stylesheet-")
+    );
+
+    writeRepoFile(
+      repoPath,
+      "src/Button.module.css",
+      ".btn { color: red; }\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/Button.tsx",
+      "import './Button.module.css';\nexport const Button = () => null;\n"
+    );
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("lists Button.tsx as direct dependent when Button.module.css changed", () => {
+    const graph = createImportGraph(repoPath);
+
+    const findings = analyzeBlastRadius({
+      changedFiles: ["src/Button.module.css"],
+      importGraph: graph,
+    });
+
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].changedFile, "src/Button.module.css");
+    assert.equal(findings[0].directDependentCount, 1);
+    assert.equal(findings[0].transitiveReachCount, 1);
+    assert.equal(findings[0].characterization, "isolated");
+    assert.deepEqual(findings[0].directDependents, ["src/Button.tsx"]);
+  });
+});

@@ -166,6 +166,27 @@ describe("buildEvidenceReport", () => {
     );
   });
 
+  it("does not list changed stylesheet files in not analyzed when they have blast-radius findings", () => {
+    const stylesheetBlastRadius: BlastRadiusFinding[] = [
+      {
+        changedFile: "src/Button.module.css",
+        directDependentCount: 1,
+        directDependents: ["src/Button.tsx"],
+        transitiveReachCount: 1,
+        characterization: "isolated",
+      },
+    ];
+
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["src/Button.module.css", "README.md"],
+      familiarity: [],
+      blastRadius: stylesheetBlastRadius,
+    });
+
+    assert.deepEqual(report.notAnalyzedForBlastRadius, ["README.md"]);
+  });
+
   it("states explicit limitations and omits a risk score or merge recommendation", () => {
     const report = buildEvidenceReport({
       author,

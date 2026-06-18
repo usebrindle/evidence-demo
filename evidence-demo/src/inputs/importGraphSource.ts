@@ -128,7 +128,7 @@ function resolveRelativeModule(
     }
   }
 
-  return null;
+  return resolveRelativeStylesheetModule(repoPath, importerRelativePath, specifier);
 }
 
 const STYLESHEET_EXTENSIONS = ["scss", "sass", "css"] as const;
@@ -346,7 +346,17 @@ function resolveModule(
     return null;
   }
 
-  return resolveAliasedModule(
+  const aliased = resolveAliasedModule(
+    repoPath,
+    importerRelativePath,
+    specifier,
+    compilerOptions
+  );
+  if (aliased !== null) {
+    return aliased;
+  }
+
+  return resolveAliasedStylesheetModule(
     repoPath,
     importerRelativePath,
     specifier,
