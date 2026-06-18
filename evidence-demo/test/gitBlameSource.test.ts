@@ -6,6 +6,7 @@ import path from "node:path";
 import { after, before, describe, it } from "node:test";
 
 import { createGitBlameSource } from "../src/inputs/gitBlameSource.js";
+import { historyWindowSince } from "../src/inputs/gitHistorySource.js";
 
 function git(
   repoPath: string,
@@ -49,6 +50,8 @@ function commitAs(
 describe("createGitBlameSource", () => {
   let repoPath = "";
   let headRevision = "";
+  const referenceDate = new Date("2026-06-17T12:00:00Z");
+  const windowSince = historyWindowSince(referenceDate);
 
   before(() => {
     repoPath = mkdtempSync(
@@ -124,6 +127,7 @@ describe("createGitBlameSource", () => {
       path: "src/mixed.ts",
       authorEmail: "alice@example.com",
       revision: headRevision,
+      since: windowSince,
     });
 
     assert.equal(stats.totalBlameableLineCount, 5);
@@ -136,6 +140,7 @@ describe("createGitBlameSource", () => {
       path: "src/mixed.ts",
       authorEmail: "bob@example.com",
       revision: headRevision,
+      since: windowSince,
     });
 
     assert.equal(stats.totalBlameableLineCount, 5);
@@ -148,6 +153,7 @@ describe("createGitBlameSource", () => {
       path: "src/empty.ts",
       authorEmail: "alice@example.com",
       revision: headRevision,
+      since: windowSince,
     });
 
     assert.equal(stats.totalBlameableLineCount, 0);
@@ -160,6 +166,7 @@ describe("createGitBlameSource", () => {
       path: "src/blank.ts",
       authorEmail: "alice@example.com",
       revision: headRevision,
+      since: windowSince,
     });
 
     assert.equal(stats.totalBlameableLineCount, 0);
@@ -172,9 +179,65 @@ describe("createGitBlameSource", () => {
       path: "src/missing.ts",
       authorEmail: "alice@example.com",
       revision: headRevision,
+      since: windowSince,
     });
 
     assert.equal(stats.totalBlameableLineCount, 0);
     assert.equal(stats.authorOwnedLineCount, 0);
+  });
+
+  it("counts windowed line churn for edits inside the history window", () => {
+    const source = createGitBlameSource(repoPath);
+    const stats = source.query({
+      path: "src/mixed.ts",
+      authorEmail: "alice@example.com",
+      revision: headRevision,
+      since: windowSince,
+    });
+
+    assert.equal(stats.totalChangedLineCount, 5);
+    assert.equal(stats.authorChangedLineCount, 3);
+  });
+
+  it("excludes line changes outside the history window from windowed churn", () => {
+    const source = createGitBlameSource(repoPath);
+    const stats = source.query({
+      path: "src/mixed.ts",
+      authorEmail: "alice@example.com",
+      revision: headRevision,
+      since: new Date("2026-03-15T12:00:00Z"),
+    });
+
+    assert.equal(stats.totalChangedLineCount, 0);
+    assert.equal(stats.authorChangedLineCount, 0);
+  });
+
+  it("attributes windowed churn to the author who edited within the window", () => {
+    const source = createGitBlameSource(repoPath);
+    const stats = source.query({
+      path: "src/mixed.ts",
+      authorEmail: "bob@example.com",
+      revision: headRevision,
+      since: windowSince,
+    });
+
+    assert.equal(stats.totalChangedLineCount, 5);
+    assert.equal(stats.authorChangedLineCount, 2);
+  });
+
+  it("returns zero windowed churn counts for empty and blank files", () => {
+    const source = createGitBlameSource(repoPath);
+
+    for (const filePath of ["src/empty.ts", "src/blank.ts"]) {
+      const stats = source.query({
+        path: filePath,
+        authorEmail: "alice@example.com",
+        revision: headRevision,
+        since: windowSince,
+      });
+
+      assert.equal(stats.totalChangedLineCount, 0);
+      assert.equal(stats.authorChangedLineCount, 0);
+    }
   });
 });
