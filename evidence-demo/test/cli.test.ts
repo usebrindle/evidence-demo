@@ -131,9 +131,8 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /Evidence Report/);
     assert.match(output, /Author: Alice Author <alice@example.com>/);
     assert.match(output, /Familiarity/);
-    assert.match(output, /src\/auth\.ts — (high|moderate|none)/);
-    assert.match(output, /Author owns .* of current lines/);
-    assert.match(output, /2 commits, last touch 10 days ago/);
+    assert.match(output, /src\/auth\.ts — none/);
+    assert.match(output, /No author commits to this file in 6 months/);
     assert.match(output, /Blast Radius/);
     assert.match(output, /src\/auth\.ts — isolated/);
     assert.match(output, /Depended on by 2 modules, including src\/login\.ts, src\/signup\.ts/);
@@ -319,9 +318,8 @@ describe("runEvidenceDemo", () => {
       assert.match(output, /Familiarity/);
       assert.match(output, /src\/foo\.ts — high/);
       assert.match(output, /Author owns .* of current lines/);
-      assert.match(output, /4 commits, last touch 5 days ago/);
-      assert.match(output, /src\/bar\.ts — high/);
-      assert.match(output, /1 commit, last touch 5 days ago/);
+      assert.match(output, /3 commits, last touch 20 days ago/);
+      assert.match(output, /src\/bar\.ts — none/);
       assert.doesNotMatch(output, /src\/ —/);
     } finally {
       rmSync(famRepo, { recursive: true, force: true });
@@ -488,7 +486,6 @@ describe("runEvidenceDemo", () => {
           `bob small edit ${index}`
         );
       }
-      const base = git(rewriteRepo, ["rev-parse", "HEAD"]);
 
       writeRepoFile(
         rewriteRepo,
@@ -509,6 +506,15 @@ describe("runEvidenceDemo", () => {
         { name: "Alice Author", email: "alice@example.com" },
         daysAgo(10),
         "alice rewrites most lines"
+      );
+      const base = git(rewriteRepo, ["rev-parse", "HEAD"]);
+
+      writeRepoFile(rewriteRepo, "src/rewrite.ts", "// alice follow-up\nexport const x = 2;\n");
+      commitAs(
+        rewriteRepo,
+        { name: "Alice Author", email: "alice@example.com" },
+        daysAgo(5),
+        "alice small follow-up edit"
       );
       const head = git(rewriteRepo, ["rev-parse", "HEAD"]);
 

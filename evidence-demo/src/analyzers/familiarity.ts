@@ -28,8 +28,8 @@ export interface FamiliarityInput {
   touchedPaths: readonly string[];
   historySource: GitHistorySource;
   blameSource: GitBlameSource;
-  /** Analysis commit (e.g. PR head SHA) for git blame at current content. */
-  revision: string;
+  /** Merge-base (or explicit range base) — measurement stop point for blame and history. */
+  baseRevision: string;
 }
 
 /**
@@ -161,13 +161,13 @@ export function analyzeFamiliarity(
       authorEmail: input.author.email,
       path: touchedFile,
       since,
-      revision: input.revision,
+      revision: input.baseRevision,
     });
 
     const blameStats = input.blameSource.query({
       path: touchedFile,
       authorEmail: input.author.email,
-      revision: input.revision,
+      revision: input.baseRevision,
       since,
     });
 

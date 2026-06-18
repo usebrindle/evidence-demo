@@ -285,7 +285,7 @@ describe("analyzeFamiliarity", () => {
         touchedPaths: ["src/foo.ts"],
         historySource,
         blameSource: createZeroBlameSource(),
-        revision: "HEAD",
+        baseRevision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -304,7 +304,7 @@ describe("analyzeFamiliarity", () => {
         touchedPaths: ["src/foo.ts", "src/bar.ts"],
         historySource,
         blameSource: createZeroBlameSource(),
-        revision: "HEAD",
+        baseRevision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -324,7 +324,7 @@ describe("analyzeFamiliarity", () => {
         touchedPaths: ["src/foo.ts", "src/bar.ts", "lib/util.ts"],
         historySource,
         blameSource: createZeroBlameSource(),
-        revision: "HEAD",
+        baseRevision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -342,7 +342,7 @@ describe("analyzeFamiliarity", () => {
         touchedPaths: ["lib/util.ts"],
         historySource,
         blameSource: createZeroBlameSource(),
-        revision: "HEAD",
+        baseRevision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -551,7 +551,7 @@ describe("analyzeFamiliarity characterization", () => {
         touchedPaths: ["src/foo.ts"],
         historySource,
         blameSource: createZeroBlameSource(),
-        revision: "HEAD",
+        baseRevision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -571,7 +571,7 @@ describe("analyzeFamiliarity characterization", () => {
         touchedPaths: ["lib/util.ts"],
         historySource,
         blameSource: createZeroBlameSource(),
-        revision: "HEAD",
+        baseRevision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -592,7 +592,7 @@ describe("analyzeFamiliarity characterization", () => {
         touchedPaths: ["src/foo.ts"],
         historySource,
         blameSource: createZeroBlameSource(),
-        revision: "HEAD",
+        baseRevision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -606,7 +606,7 @@ describe("analyzeFamiliarity characterization", () => {
 
 describe("analyzeFamiliarity with git blame integration", () => {
   let repoPath = "";
-  let headRevision = "";
+  let baseRevision = "";
 
   before(() => {
     repoPath = mkdtempSync(
@@ -670,7 +670,7 @@ describe("analyzeFamiliarity with git blame integration", () => {
       "alice rewrites most lines"
     );
 
-    headRevision = git(repoPath, ["rev-parse", "HEAD"]);
+    baseRevision = git(repoPath, ["rev-parse", "HEAD"]);
   });
 
   after(() => {
@@ -686,7 +686,7 @@ describe("analyzeFamiliarity with git blame integration", () => {
         touchedPaths: ["src/rewrite.ts"],
         historySource,
         blameSource,
-        revision: headRevision,
+        baseRevision,
       },
       REFERENCE_DATE
     );
@@ -709,7 +709,7 @@ describe("analyzeFamiliarity with git blame integration", () => {
         touchedPaths: ["src/rewrite.ts"],
         historySource,
         blameSource,
-        revision: headRevision,
+        baseRevision,
       },
       REFERENCE_DATE
     );
@@ -727,7 +727,7 @@ describe("analyzeFamiliarity with git blame integration", () => {
         touchedPaths: ["src/rewrite.ts", "src/rewrite.ts"],
         historySource,
         blameSource,
-        revision: headRevision,
+        baseRevision,
       },
       REFERENCE_DATE
     );
