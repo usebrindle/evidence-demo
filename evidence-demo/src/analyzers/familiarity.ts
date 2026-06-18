@@ -4,15 +4,22 @@
  */
 
 import type { AuthorIdentity } from "../inputs/changedFiles.js";
+import type { GitBlameSource } from "../inputs/gitBlameSource.js";
 import type { GitHistorySource } from "../inputs/gitHistorySource.js";
 import { historyWindowSince } from "../inputs/gitHistorySource.js";
 
 export interface FamiliarityFinding {
   touchedFile: string;
+  authorOwnedLineCount: number;
+  totalBlameableLineCount: number;
+  shareOfCurrentContent: number;
+  authorChangedLineCount: number;
+  totalChangedLineCount: number;
+  shareOfWindowedLineChurn: number;
   authorCommitCount: number;
   totalFileCommitCount: number;
   lastTouchDate: Date | null;
-  shareOfFileChurn: number;
+  shareOfFileCommitChurn: number;
   characterization: "high" | "moderate" | "none";
 }
 
@@ -20,6 +27,9 @@ export interface FamiliarityInput {
   author: AuthorIdentity;
   touchedPaths: readonly string[];
   historySource: GitHistorySource;
+  blameSource: GitBlameSource;
+  /** Analysis commit (e.g. PR head SHA) for git blame at current content. */
+  revision: string;
 }
 
 /**
@@ -42,8 +52,30 @@ export function countAuthorCommitsToFile(
 
 export type FamiliarityCharacterization = FamiliarityFinding["characterization"];
 
+/** Author's share of blameable lines at the analysis revision (0 when none). */
+export function shareOfCurrentContent(
+  authorOwnedLineCount: number,
+  totalBlameableLineCount: number
+): number {
+  if (totalBlameableLineCount === 0) {
+    return 0;
+  }
+  return authorOwnedLineCount / totalBlameableLineCount;
+}
+
+/** Author's share of line changes within the history window (0 when none). */
+export function shareOfWindowedLineChurn(
+  authorChangedLineCount: number,
+  totalChangedLineCount: number
+): number {
+  if (totalChangedLineCount === 0) {
+    return 0;
+  }
+  return authorChangedLineCount / totalChangedLineCount;
+}
+
 /** Author's share of total commits to a file (0 when the file has no churn). */
-export function shareOfFileChurn(
+export function shareOfFileCommitChurn(
   authorCommitCount: number,
   totalFileCommitCount: number
 ): number {
@@ -59,48 +91,56 @@ function daysSince(date: Date, asOf: Date): number {
 }
 
 /**
- * Slice 3: characterize familiarity from counts, share, and recency.
- * Stale history cannot yield high regardless of commit count.
+ * Slice 3 + LLD 0001 combined rule: line shares and commit activity, recency-gated.
+ * Stale history cannot yield high regardless of line ownership or commit count.
  */
 export function characterizeFamiliarity(
   authorCommitCount: number,
   totalFileCommitCount: number,
   lastTouchDate: Date | null,
+  shareOfCurrentContent: number = 0,
+  shareOfWindowedLineChurn: number = 0,
   asOf: Date = new Date()
-): Pick<FamiliarityFinding, "shareOfFileChurn" | "characterization"> {
-  const share = shareOfFileChurn(authorCommitCount, totalFileCommitCount);
+): Pick<FamiliarityFinding, "shareOfFileCommitChurn" | "characterization"> {
+  const share = shareOfFileCommitChurn(authorCommitCount, totalFileCommitCount);
 
   if (authorCommitCount === 0 || lastTouchDate === null) {
-    return { shareOfFileChurn: share, characterization: "none" };
+    return { shareOfFileCommitChurn: share, characterization: "none" };
   }
 
   const recencyDays = daysSince(lastTouchDate, asOf);
 
   if (recencyDays > 180) {
-    return { shareOfFileChurn: share, characterization: "none" };
+    return { shareOfFileCommitChurn: share, characterization: "none" };
   }
 
   if (recencyDays > 120 && authorCommitCount === 1) {
-    return { shareOfFileChurn: share, characterization: "none" };
+    return { shareOfFileCommitChurn: share, characterization: "none" };
   }
 
   const qualifiesForHigh =
     recencyDays <= 60 &&
-    (authorCommitCount >= 3 || share >= 0.25);
+    (shareOfCurrentContent >= 0.25 ||
+      shareOfWindowedLineChurn >= 0.25 ||
+      authorCommitCount >= 3);
 
   if (qualifiesForHigh) {
-    return { shareOfFileChurn: share, characterization: "high" };
+    return { shareOfFileCommitChurn: share, characterization: "high" };
   }
 
   const qualifiesForModerate =
     (recencyDays <= 120 && authorCommitCount >= 1) ||
-    (recencyDays > 120 && recencyDays <= 180 && authorCommitCount >= 2);
+    (recencyDays > 120 &&
+      recencyDays <= 180 &&
+      authorCommitCount >= 2) ||
+    (recencyDays <= 120 &&
+      (shareOfCurrentContent >= 0.1 || shareOfWindowedLineChurn >= 0.1));
 
   if (qualifiesForModerate) {
-    return { shareOfFileChurn: share, characterization: "moderate" };
+    return { shareOfFileCommitChurn: share, characterization: "moderate" };
   }
 
-  return { shareOfFileChurn: share, characterization: "none" };
+  return { shareOfFileCommitChurn: share, characterization: "none" };
 }
 
 /**
@@ -121,19 +161,50 @@ export function analyzeFamiliarity(
       since,
     });
 
-    const { shareOfFileChurn, characterization } = characterizeFamiliarity(
+    const blameStats = input.blameSource.query({
+      path: touchedFile,
+      authorEmail: input.author.email,
+      revision: input.revision,
+      since,
+    });
+
+    const {
+      authorOwnedLineCount,
+      totalBlameableLineCount,
+      authorChangedLineCount,
+      totalChangedLineCount,
+    } = blameStats;
+
+    const currentContentShare = shareOfCurrentContent(
+      authorOwnedLineCount,
+      totalBlameableLineCount
+    );
+    const windowedLineChurnShare = shareOfWindowedLineChurn(
+      authorChangedLineCount,
+      totalChangedLineCount
+    );
+
+    const { shareOfFileCommitChurn, characterization } = characterizeFamiliarity(
       stats.authorCommitCount,
       stats.totalCommitCount,
       stats.lastTouchDate,
+      currentContentShare,
+      windowedLineChurnShare,
       asOf
     );
 
     return {
       touchedFile,
+      authorOwnedLineCount,
+      totalBlameableLineCount,
+      shareOfCurrentContent: currentContentShare,
+      authorChangedLineCount,
+      totalChangedLineCount,
+      shareOfWindowedLineChurn: windowedLineChurnShare,
       authorCommitCount: stats.authorCommitCount,
       totalFileCommitCount: stats.totalCommitCount,
       lastTouchDate: stats.lastTouchDate,
-      shareOfFileChurn,
+      shareOfFileCommitChurn,
       characterization,
     };
   });

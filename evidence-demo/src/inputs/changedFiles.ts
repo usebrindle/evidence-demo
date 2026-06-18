@@ -13,6 +13,8 @@ export interface AuthorIdentity {
 export interface ChangedFilesResult {
   changedFiles: string[];
   author: AuthorIdentity;
+  /** Resolved commit SHA for the analysis head (PR head, branch tip, or range head). */
+  headRevision: string;
 }
 
 export interface ChangedFilesInput {
@@ -177,5 +179,6 @@ export function resolveChangedFiles(input: ChangedFilesInput): ChangedFilesResul
   return {
     changedFiles: listChangedFiles(repoPath, base, head),
     author: resolveAuthor(repoPath, head),
+    headRevision: head,
   };
 }

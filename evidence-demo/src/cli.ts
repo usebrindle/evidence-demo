@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { analyzeBlastRadius } from "./analyzers/blastRadius.js";
 import { analyzeFamiliarity } from "./analyzers/familiarity.js";
 import { resolveChangedFiles } from "./inputs/changedFiles.js";
+import { createGitBlameSource } from "./inputs/gitBlameSource.js";
 import { createGitHistorySource } from "./inputs/gitHistorySource.js";
 import { createImportGraph } from "./inputs/importGraphSource.js";
 import { buildEvidenceReport } from "./report/buildEvidenceReport.js";
@@ -35,17 +36,20 @@ export function runEvidenceDemo(
   const resolvedRepo = path.resolve(repoPath);
   const asOf = options.asOf ?? new Date();
 
-  const { changedFiles, author } = resolveChangedFiles({
+  const { changedFiles, author, headRevision } = resolveChangedFiles({
     repoPath: resolvedRepo,
     prOrRange,
   });
 
   const historySource = createGitHistorySource(resolvedRepo);
+  const blameSource = createGitBlameSource(resolvedRepo);
   const familiarity = analyzeFamiliarity(
     {
       author,
       touchedPaths: changedFiles,
       historySource,
+      blameSource,
+      revision: headRevision,
     },
     asOf
   );

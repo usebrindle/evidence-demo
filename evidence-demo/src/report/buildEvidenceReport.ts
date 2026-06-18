@@ -45,8 +45,9 @@ export function buildEvidenceReport(
       "Transitive reach and direct dependent counts follow static ESM import and static-literal CommonJS require() chains; dynamic require(), runtime indirection, and non-literal dynamic import() are not counted; non-source files are excluded.",
       "On platforms with non-import/require wiring (e.g. SFCC cartridge paths), blast-radius counts may be a lower bound.",
       "Path aliases are resolved only from the repository root tsconfig.json or jsconfig.json (compilerOptions.paths / baseUrl). Aliases defined only in bundler config (e.g. Vite, Webpack) or nested package configs are not applied.",
-      "Git history does not account for renames, squashes, co-authored commits, or bot attribution.",
-      "Familiarity window is fixed at 6 months.",
+      "Familiarity uses git blame at PR head for current content ownership and windowed line churn; commit counts and recency come from git log. Commit-share is reported separately and is not a substitute for line ownership.",
+      "Git history and blame do not account for renames, squashes, co-authored commits, or bot attribution. Line ownership on generated, minified, or binary files may be misleading or unavailable.",
+      "Familiarity window is fixed at 6 months; recency gates the characterization label—high current-line ownership without a recent touch does not yield high.",
       "No risk score or merge recommendation is produced.",
     ],
   };

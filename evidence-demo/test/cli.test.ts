@@ -132,7 +132,8 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /Author: Alice Author <alice@example.com>/);
     assert.match(output, /Familiarity/);
     assert.match(output, /src\/auth\.ts — (high|moderate|none)/);
-    assert.match(output, /Author has 2 commits to this file in 6 months/);
+    assert.match(output, /Author owns .* of current lines/);
+    assert.match(output, /2 commits, last touch 10 days ago/);
     assert.match(output, /Blast Radius/);
     assert.match(output, /src\/auth\.ts — isolated/);
     assert.match(output, /Depended on by 2 modules, including src\/login\.ts, src\/signup\.ts/);
@@ -317,9 +318,10 @@ describe("runEvidenceDemo", () => {
       assert.match(output, /Changed files \(2\):/);
       assert.match(output, /Familiarity/);
       assert.match(output, /src\/foo\.ts — high/);
-      assert.match(output, /Author has 4 commits to this file in 6 months/);
-      assert.match(output, /src\/bar\.ts — moderate/);
-      assert.match(output, /Author has 1 commit to this file in 6 months/);
+      assert.match(output, /Author owns .* of current lines/);
+      assert.match(output, /4 commits, last touch 5 days ago/);
+      assert.match(output, /src\/bar\.ts — high/);
+      assert.match(output, /1 commit, last touch 5 days ago/);
       assert.doesNotMatch(output, /src\/ —/);
     } finally {
       rmSync(famRepo, { recursive: true, force: true });
@@ -442,6 +444,86 @@ describe("runEvidenceDemo", () => {
       assert.doesNotMatch(output, /Not Analyzed for Blast Radius/);
     } finally {
       rmSync(chainRepo, { recursive: true, force: true });
+    }
+  });
+
+  it("shows high familiarity for single-rewrite when line ownership outweighs one commit", () => {
+    const rewriteRepo = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-single-rewrite-e2e-")
+    );
+    try {
+      git(rewriteRepo, ["init"]);
+      git(rewriteRepo, ["config", "user.name", "Setup"]);
+      git(rewriteRepo, ["config", "user.email", "setup@example.com"]);
+
+      writeRepoFile(
+        rewriteRepo,
+        "src/rewrite.ts",
+        [
+          "// bob line 1",
+          "export const a = 1;",
+          "// bob line 2",
+          "export const b = 2;",
+          "// bob line 3",
+          "export const c = 3;",
+        ].join("\n")
+      );
+      commitAs(
+        rewriteRepo,
+        { name: "Bob Builder", email: "bob@example.com" },
+        daysAgo(150),
+        "bob initial rewrite file"
+      );
+
+      for (let index = 0; index < 5; index += 1) {
+        writeRepoFile(
+          rewriteRepo,
+          "src/rewrite.ts",
+          `// bob tweak ${index}\nexport const v = ${index};\n`
+        );
+        commitAs(
+          rewriteRepo,
+          { name: "Bob Builder", email: "bob@example.com" },
+          daysAgo(140 - index * 10),
+          `bob small edit ${index}`
+        );
+      }
+      const base = git(rewriteRepo, ["rev-parse", "HEAD"]);
+
+      writeRepoFile(
+        rewriteRepo,
+        "src/rewrite.ts",
+        [
+          "// alice rewrite 1",
+          "export const x = 1;",
+          "// alice rewrite 2",
+          "export const y = 2;",
+          "// alice rewrite 3",
+          "export const z = 3;",
+          "// alice rewrite 4",
+          "export const w = 4;",
+        ].join("\n")
+      );
+      commitAs(
+        rewriteRepo,
+        { name: "Alice Author", email: "alice@example.com" },
+        daysAgo(10),
+        "alice rewrites most lines"
+      );
+      const head = git(rewriteRepo, ["rev-parse", "HEAD"]);
+
+      const output = runEvidenceDemo(rewriteRepo, `${base}...${head}`, {
+        asOf: REFERENCE_DATE,
+      });
+
+      assert.match(output, /Author: Alice Author <alice@example.com>/);
+      assert.match(output, /Familiarity/);
+      assert.match(output, /src\/rewrite\.ts — high/);
+      assert.match(output, /Author owns .* of current lines/);
+      assert.match(output, /1 commit, last touch 10 days ago/);
+      assert.match(output, /6 commits by others in window/);
+    } finally {
+      rmSync(rewriteRepo, { recursive: true, force: true });
     }
   });
 

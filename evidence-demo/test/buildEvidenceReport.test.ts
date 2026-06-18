@@ -13,18 +13,30 @@ const author = { name: "Ada Lovelace", email: "ada@example.com" };
 const sampleFamiliarity: FamiliarityFinding[] = [
   {
     touchedFile: "src/util.ts",
+    authorOwnedLineCount: 0,
+    totalBlameableLineCount: 0,
+    shareOfCurrentContent: 0,
+    authorChangedLineCount: 0,
+    totalChangedLineCount: 0,
+    shareOfWindowedLineChurn: 0,
     authorCommitCount: 3,
     totalFileCommitCount: 12,
     lastTouchDate: new Date("2026-05-01T00:00:00Z"),
-    shareOfFileChurn: 0.25,
+    shareOfFileCommitChurn: 0.25,
     characterization: "high",
   },
   {
     touchedFile: "docs/guide.md",
+    authorOwnedLineCount: 0,
+    totalBlameableLineCount: 0,
+    shareOfCurrentContent: 0,
+    authorChangedLineCount: 0,
+    totalChangedLineCount: 0,
+    shareOfWindowedLineChurn: 0,
     authorCommitCount: 0,
     totalFileCommitCount: 4,
     lastTouchDate: null,
-    shareOfFileChurn: 0,
+    shareOfFileCommitChurn: 0,
     characterization: "none",
   },
 ];
@@ -76,7 +88,7 @@ describe("buildEvidenceReport", () => {
     assert.ok(srcFinding);
     assert.equal(srcFinding.authorCommitCount, 3);
     assert.equal(srcFinding.totalFileCommitCount, 12);
-    assert.equal(srcFinding.shareOfFileChurn, 0.25);
+    assert.equal(srcFinding.shareOfFileCommitChurn, 0.25);
     assert.equal(srcFinding.characterization, "high");
     assert.equal(
       srcFinding.lastTouchDate?.toISOString(),
@@ -193,6 +205,50 @@ describe("buildEvidenceReport", () => {
       )
     );
     assertNoRiskScore(report);
+  });
+
+  it("states blame-based familiarity limitations and merged git-history caveats", () => {
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["src/util.ts"],
+      familiarity: sampleFamiliarity,
+      blastRadius: sampleBlastRadius,
+    });
+
+    assert.ok(
+      report.limitations.some(
+        (item) =>
+          item.includes("git blame at PR head") &&
+          item.includes("current content ownership") &&
+          item.includes("windowed line churn") &&
+          item.includes("git log") &&
+          item.includes("Commit-share is reported separately") &&
+          item.includes("not a substitute for line ownership")
+      )
+    );
+    assert.ok(
+      report.limitations.some(
+        (item) =>
+          item.includes("Git history and blame do not account for") &&
+          item.includes("renames, squashes, co-authored commits, or bot attribution") &&
+          item.includes("generated, minified, or binary files")
+      )
+    );
+    assert.ok(
+      report.limitations.some(
+        (item) =>
+          item.includes("Familiarity window is fixed at 6 months") &&
+          item.includes("recency gates the characterization label") &&
+          item.includes("high current-line ownership without a recent touch")
+      )
+    );
+    assert.ok(
+      report.limitations.every(
+        (item) =>
+          !item.includes("Git history does not account for") ||
+          item.includes("Git history and blame do not account for")
+      )
+    );
   });
 
   it("passes through changeReference when provided", () => {
