@@ -9,7 +9,8 @@ import ts from "typescript";
 
 export type ImportGraph = ReadonlyMap<string, readonly string[]>;
 
-const IN_SCOPE_SOURCE_EXTENSION = /\.(jsx?|mjs|cjs|tsx?|mts|cts)$/;
+const IN_SCOPE_SOURCE_EXTENSION =
+  /\.(jsx?|mjs|cjs|tsx?|mts|cts|css|scss|sass)$/;
 
 const SKIP_DIRS = new Set([
   "node_modules",
@@ -28,7 +29,12 @@ export function isAnalyzableSourceFile(filePath: string): boolean {
   return IN_SCOPE_SOURCE_EXTENSION.test(normalized);
 }
 
-function collectSourceFiles(repoPath: string): string[] {
+export function isStylesheetFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, "/");
+  return /\.(css|scss|sass)$/.test(normalized);
+}
+
+export function collectSourceFiles(repoPath: string): string[] {
   const files: string[] = [];
 
   function walk(dir: string): void {
@@ -270,6 +276,11 @@ export function createImportGraph(repoPath: string): ImportGraph {
   const graph = new Map<string, Set<string>>();
 
   for (const file of sourceFiles) {
+    if (isStylesheetFile(file)) {
+      // Stylesheet @import/@use/@forward parsing added in US-002+
+      continue;
+    }
+
     const fullPath = path.join(resolvedRepo, file);
     const sourceText = readFileSync(fullPath, "utf8");
     const specifiers = extractImportSpecifiers(sourceText, file);

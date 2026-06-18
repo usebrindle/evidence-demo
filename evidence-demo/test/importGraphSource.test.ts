@@ -4,7 +4,11 @@ import os from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
 
-import { createImportGraph } from "../src/inputs/importGraphSource.js";
+import {
+  collectSourceFiles,
+  createImportGraph,
+  isAnalyzableSourceFile,
+} from "../src/inputs/importGraphSource.js";
 
 function writeRepoFile(
   repoPath: string,
@@ -374,5 +378,84 @@ describe("createImportGraph require()", () => {
 
       assert.deepEqual(graph.get("src/alias-target.js"), ["src/alias-require.js"]);
     });
+  });
+});
+
+describe("isAnalyzableSourceFile", () => {
+  it("returns true for stylesheet extensions", () => {
+    assert.equal(isAnalyzableSourceFile("styles/main.css"), true);
+    assert.equal(isAnalyzableSourceFile("styles/theme.scss"), true);
+    assert.equal(isAnalyzableSourceFile("styles/_tokens.sass"), true);
+    assert.equal(isAnalyzableSourceFile("src/Button.module.css"), true);
+  });
+
+  it("returns true for existing JS/TS extensions", () => {
+    assert.equal(isAnalyzableSourceFile("src/util.ts"), true);
+    assert.equal(isAnalyzableSourceFile("src/util.tsx"), true);
+    assert.equal(isAnalyzableSourceFile("src/util.js"), true);
+    assert.equal(isAnalyzableSourceFile("src/util.jsx"), true);
+    assert.equal(isAnalyzableSourceFile("src/util.mjs"), true);
+    assert.equal(isAnalyzableSourceFile("src/util.cjs"), true);
+  });
+
+  it("returns false for non-source files", () => {
+    assert.equal(isAnalyzableSourceFile("README.md"), false);
+    assert.equal(isAnalyzableSourceFile("package.json"), false);
+    assert.equal(isAnalyzableSourceFile("assets/logo.png"), false);
+  });
+});
+
+describe("collectSourceFiles", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-collect-source-")
+    );
+
+    writeRepoFile(repoPath, "src/util.ts", "export const util = 1;\n");
+    writeRepoFile(repoPath, "styles/base.css", ".btn { color: red; }\n");
+    writeRepoFile(repoPath, "styles/theme.scss", "$color: blue;\n");
+    writeRepoFile(repoPath, "styles/_tokens.sass", "$spacing: 8px\n");
+    writeRepoFile(repoPath, "README.md", "# Demo\n");
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("walks and includes stylesheet files alongside JS/TS", () => {
+    const files = collectSourceFiles(repoPath);
+
+    assert.deepEqual(files, [
+      "src/util.ts",
+      "styles/_tokens.sass",
+      "styles/base.css",
+      "styles/theme.scss",
+    ]);
+  });
+});
+
+describe("createImportGraph stylesheet discovery", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-import-graph-stylesheet-")
+    );
+
+    writeRepoFile(repoPath, "styles/base.css", ".btn { color: red; }\n");
+    writeRepoFile(repoPath, "styles/theme.scss", "$color: blue;\n");
+    writeRepoFile(repoPath, "styles/_tokens.sass", "$spacing: 8px\n");
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("scans repos containing only stylesheet files without error", () => {
+    const graph = createImportGraph(repoPath);
+
+    assert.equal(graph.size, 0);
   });
 });

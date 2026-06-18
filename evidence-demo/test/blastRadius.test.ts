@@ -301,11 +301,46 @@ describe("analyzeBlastRadius", () => {
     const graph = new Map<string, readonly string[]>();
 
     const findings = analyzeBlastRadius({
-      changedFiles: ["docs/guide.md", "package.json", "styles/main.css"],
+      changedFiles: ["docs/guide.md", "package.json"],
       importGraph: graph,
     });
 
     assert.deepEqual(findings, []);
+  });
+
+  it("returns findings for changed stylesheet files present in the graph", () => {
+    const graph = new Map([
+      ["styles/base.css", ["styles/app.css"]],
+      ["styles/theme.scss", ["src/App.tsx", "styles/main.scss"]],
+    ]);
+
+    const findings = analyzeBlastRadius({
+      changedFiles: ["styles/base.css", "styles/theme.scss", "README.md"],
+      importGraph: graph,
+    });
+
+    assert.equal(findings.length, 2);
+
+    const base = findings.find(
+      (finding) => finding.changedFile === "styles/base.css"
+    );
+    assert.ok(base);
+    assert.equal(base.directDependentCount, 1);
+    assert.equal(base.transitiveReachCount, 1);
+    assert.equal(base.characterization, "isolated");
+    assert.deepEqual(base.directDependents, ["styles/app.css"]);
+
+    const theme = findings.find(
+      (finding) => finding.changedFile === "styles/theme.scss"
+    );
+    assert.ok(theme);
+    assert.equal(theme.directDependentCount, 2);
+    assert.equal(theme.transitiveReachCount, 2);
+    assert.equal(theme.characterization, "isolated");
+    assert.deepEqual(theme.directDependents, [
+      "src/App.tsx",
+      "styles/main.scss",
+    ]);
   });
 
   it("returns findings for changed JavaScript and JSX files", () => {
