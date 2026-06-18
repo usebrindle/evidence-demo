@@ -367,47 +367,73 @@ describe("shareOfWindowedLineChurn", () => {
 
 describe("characterizeFamiliarity", () => {
   it("returns high when recent with enough commits", () => {
-    const result = characterizeFamiliarity(3, 10, daysAgo(30), REFERENCE_DATE);
+    const result = characterizeFamiliarity(3, 10, daysAgo(30), 0, 0, REFERENCE_DATE);
     assert.equal(result.characterization, "high");
     assert.equal(result.shareOfFileCommitChurn, 0.3);
   });
 
-  it("returns high when recent with high share but fewer than 3 commits", () => {
-    const result = characterizeFamiliarity(2, 6, daysAgo(45), REFERENCE_DATE);
+  it("returns high when recent with high current-content share but fewer than 3 commits", () => {
+    const result = characterizeFamiliarity(1, 6, daysAgo(45), 0.3, 0, REFERENCE_DATE);
     assert.equal(result.characterization, "high");
-    assert.equal(result.shareOfFileCommitChurn, 1 / 3);
+    assert.equal(result.shareOfFileCommitChurn, 1 / 6);
   });
 
-  it("returns moderate when recent with one commit below high thresholds", () => {
-    const result = characterizeFamiliarity(1, 20, daysAgo(90), REFERENCE_DATE);
+  it("returns high for single-rewrite case: one recent commit with high line ownership", () => {
+    const result = characterizeFamiliarity(1, 20, daysAgo(10), 0.62, 0.41, REFERENCE_DATE);
+    assert.equal(result.characterization, "high");
+    assert.equal(result.shareOfFileCommitChurn, 0.05);
+  });
+
+  it("returns high when recent with high windowed line churn share", () => {
+    const result = characterizeFamiliarity(2, 10, daysAgo(30), 0, 0.3, REFERENCE_DATE);
+    assert.equal(result.characterization, "high");
+  });
+
+  it("returns moderate when recent with one commit and low line shares", () => {
+    const result = characterizeFamiliarity(1, 20, daysAgo(90), 0, 0, REFERENCE_DATE);
     assert.equal(result.characterization, "moderate");
     assert.equal(result.shareOfFileCommitChurn, 0.05);
   });
 
+  it("returns moderate when recent with moderate line ownership below high threshold", () => {
+    const result = characterizeFamiliarity(1, 10, daysAgo(90), 0.15, 0, REFERENCE_DATE);
+    assert.equal(result.characterization, "moderate");
+  });
+
   it("returns moderate for two commits between 121 and 180 days ago", () => {
-    const result = characterizeFamiliarity(2, 10, daysAgo(150), REFERENCE_DATE);
+    const result = characterizeFamiliarity(2, 10, daysAgo(150), 0, 0, REFERENCE_DATE);
     assert.equal(result.characterization, "moderate");
   });
 
   it("returns none for zero commits", () => {
-    const result = characterizeFamiliarity(0, 5, null, REFERENCE_DATE);
+    const result = characterizeFamiliarity(0, 5, null, 0, 0, REFERENCE_DATE);
     assert.equal(result.characterization, "none");
     assert.equal(result.shareOfFileCommitChurn, 0);
   });
 
   it("returns none for a single stale commit beyond 120 days", () => {
-    const result = characterizeFamiliarity(1, 5, daysAgo(130), REFERENCE_DATE);
+    const result = characterizeFamiliarity(1, 5, daysAgo(130), 0, 0, REFERENCE_DATE);
     assert.equal(result.characterization, "none");
   });
 
   it("returns none when last touch is beyond 180 days regardless of commit count", () => {
-    const result = characterizeFamiliarity(10, 20, daysAgo(200), REFERENCE_DATE);
+    const result = characterizeFamiliarity(10, 20, daysAgo(200), 0, 0, REFERENCE_DATE);
     assert.equal(result.characterization, "none");
   });
 
   it("cannot return high when last touch is beyond 60 days even with many commits", () => {
-    const result = characterizeFamiliarity(10, 10, daysAgo(90), REFERENCE_DATE);
+    const result = characterizeFamiliarity(10, 10, daysAgo(90), 0, 0, REFERENCE_DATE);
     assert.equal(result.characterization, "moderate");
+  });
+
+  it("cannot return high for stale high line ownership without recent touch", () => {
+    const result = characterizeFamiliarity(1, 5, daysAgo(90), 0.9, 0.9, REFERENCE_DATE);
+    assert.equal(result.characterization, "moderate");
+  });
+
+  it("returns none for high line ownership when last touch is beyond 180 days", () => {
+    const result = characterizeFamiliarity(1, 5, daysAgo(200), 0.9, 0.9, REFERENCE_DATE);
+    assert.equal(result.characterization, "none");
   });
 });
 
@@ -491,7 +517,7 @@ describe("analyzeFamiliarity characterization", () => {
     rmSync(repoPath, { recursive: true, force: true });
   });
 
-  it("computes share and high characterization for active files", () => {
+  it("computes share and moderate characterization for active files without line signals", () => {
     const historySource = createGitHistorySource(repoPath);
     const findings = analyzeFamiliarity(
       {
@@ -506,7 +532,7 @@ describe("analyzeFamiliarity characterization", () => {
     assert.equal(findings[0]?.authorCommitCount, 2);
     assert.equal(findings[0]?.totalFileCommitCount, 4);
     assert.equal(findings[0]?.shareOfFileCommitChurn, 0.5);
-    assert.equal(findings[0]?.characterization, "high");
+    assert.equal(findings[0]?.characterization, "moderate");
   });
 
   it("retains supporting numbers alongside the characterization label", () => {
@@ -524,7 +550,7 @@ describe("analyzeFamiliarity characterization", () => {
     assert.equal(findings[0]?.authorCommitCount, 1);
     assert.equal(findings[0]?.totalFileCommitCount, 2);
     assert.equal(findings[0]?.shareOfFileCommitChurn, 0.5);
-    assert.equal(findings[0]?.characterization, "high");
+    assert.equal(findings[0]?.characterization, "moderate");
     assert.deepEqual(findings[0]?.lastTouchDate, daysAgo(20));
   });
 
