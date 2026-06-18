@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { analyzeBlastRadius } from "./analyzers/blastRadius.js";
 import { analyzeFamiliarity } from "./analyzers/familiarity.js";
 import { resolveChangedFiles } from "./inputs/changedFiles.js";
+import { createGitBlameSource } from "./inputs/gitBlameSource.js";
 import { createGitHistorySource } from "./inputs/gitHistorySource.js";
 import { createImportGraph } from "./inputs/importGraphSource.js";
 import { buildEvidenceReport } from "./report/buildEvidenceReport.js";
@@ -41,11 +42,15 @@ export function runEvidenceDemo(
   });
 
   const historySource = createGitHistorySource(resolvedRepo);
+  const blameSource = createGitBlameSource(resolvedRepo);
   const familiarity = analyzeFamiliarity(
     {
       author,
       touchedPaths: changedFiles,
       historySource,
+      blameSource,
+      // US-006 will pass PR head SHA from resolveChangedFiles.headRevision
+      revision: "HEAD",
     },
     asOf
   );

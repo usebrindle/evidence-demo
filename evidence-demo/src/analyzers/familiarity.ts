@@ -4,6 +4,7 @@
  */
 
 import type { AuthorIdentity } from "../inputs/changedFiles.js";
+import type { GitBlameSource } from "../inputs/gitBlameSource.js";
 import type { GitHistorySource } from "../inputs/gitHistorySource.js";
 import { historyWindowSince } from "../inputs/gitHistorySource.js";
 
@@ -26,6 +27,9 @@ export interface FamiliarityInput {
   author: AuthorIdentity;
   touchedPaths: readonly string[];
   historySource: GitHistorySource;
+  blameSource: GitBlameSource;
+  /** Analysis commit (e.g. PR head SHA) for git blame at current content. */
+  revision: string;
 }
 
 /**
@@ -157,10 +161,20 @@ export function analyzeFamiliarity(
       since,
     });
 
-    const authorOwnedLineCount = 0;
-    const totalBlameableLineCount = 0;
-    const authorChangedLineCount = 0;
-    const totalChangedLineCount = 0;
+    const blameStats = input.blameSource.query({
+      path: touchedFile,
+      authorEmail: input.author.email,
+      revision: input.revision,
+      since,
+    });
+
+    const {
+      authorOwnedLineCount,
+      totalBlameableLineCount,
+      authorChangedLineCount,
+      totalChangedLineCount,
+    } = blameStats;
+
     const currentContentShare = shareOfCurrentContent(
       authorOwnedLineCount,
       totalBlameableLineCount

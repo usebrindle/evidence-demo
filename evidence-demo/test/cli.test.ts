@@ -318,7 +318,7 @@ describe("runEvidenceDemo", () => {
       assert.match(output, /Familiarity/);
       assert.match(output, /src\/foo\.ts — high/);
       assert.match(output, /Author has 4 commits to this file in 6 months/);
-      assert.match(output, /src\/bar\.ts — moderate/);
+      assert.match(output, /src\/bar\.ts — high/);
       assert.match(output, /Author has 1 commit to this file in 6 months/);
       assert.doesNotMatch(output, /src\/ —/);
     } finally {

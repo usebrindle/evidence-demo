@@ -13,9 +13,23 @@ import {
   shareOfFileCommitChurn,
   shareOfWindowedLineChurn,
 } from "../src/analyzers/familiarity.js";
+import type { GitBlameSource } from "../src/inputs/gitBlameSource.js";
+import { createGitBlameSource } from "../src/inputs/gitBlameSource.js";
 import { createGitHistorySource } from "../src/inputs/gitHistorySource.js";
 
 const REFERENCE_DATE = new Date("2026-06-17T12:00:00Z");
+
+/** Injectable blame source returning zero line stats for commit-only pure tests. */
+function createZeroBlameSource(): GitBlameSource {
+  return {
+    query: () => ({
+      authorOwnedLineCount: 0,
+      totalBlameableLineCount: 0,
+      authorChangedLineCount: 0,
+      totalChangedLineCount: 0,
+    }),
+  };
+}
 
 function daysAgo(days: number): Date {
   const date = new Date(REFERENCE_DATE);
@@ -266,6 +280,8 @@ describe("analyzeFamiliarity", () => {
         author: { name: "Alice Author", email: "alice@example.com" },
         touchedPaths: ["src/foo.ts"],
         historySource,
+        blameSource: createZeroBlameSource(),
+        revision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -283,6 +299,8 @@ describe("analyzeFamiliarity", () => {
         author: { name: "Alice Author", email: "alice@example.com" },
         touchedPaths: ["src/foo.ts", "src/bar.ts"],
         historySource,
+        blameSource: createZeroBlameSource(),
+        revision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -301,6 +319,8 @@ describe("analyzeFamiliarity", () => {
         author: { name: "Alice Author", email: "alice@example.com" },
         touchedPaths: ["src/foo.ts", "src/bar.ts", "lib/util.ts"],
         historySource,
+        blameSource: createZeroBlameSource(),
+        revision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -317,6 +337,8 @@ describe("analyzeFamiliarity", () => {
         author: { name: "Alice Author", email: "alice@example.com" },
         touchedPaths: ["lib/util.ts"],
         historySource,
+        blameSource: createZeroBlameSource(),
+        revision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -524,6 +546,8 @@ describe("analyzeFamiliarity characterization", () => {
         author: { name: "Alice Author", email: "alice@example.com" },
         touchedPaths: ["src/foo.ts"],
         historySource,
+        blameSource: createZeroBlameSource(),
+        revision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -542,6 +566,8 @@ describe("analyzeFamiliarity characterization", () => {
         author: { name: "Alice Author", email: "alice@example.com" },
         touchedPaths: ["lib/util.ts"],
         historySource,
+        blameSource: createZeroBlameSource(),
+        revision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -561,6 +587,8 @@ describe("analyzeFamiliarity characterization", () => {
         author: { name: "Charlie Coder", email: "charlie@example.com" },
         touchedPaths: ["src/foo.ts"],
         historySource,
+        blameSource: createZeroBlameSource(),
+        revision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -569,5 +597,138 @@ describe("analyzeFamiliarity characterization", () => {
     assert.equal(findings[0]?.authorCommitCount, 0);
     assert.equal(findings[0]?.characterization, "none");
     assert.equal(findings[0]?.shareOfFileCommitChurn, 0);
+  });
+});
+
+describe("analyzeFamiliarity with git blame integration", () => {
+  let repoPath = "";
+  let headRevision = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-familiarity-blame-")
+    );
+    git(repoPath, ["init"]);
+    git(repoPath, ["config", "user.name", "Setup"]);
+    git(repoPath, ["config", "user.email", "setup@example.com"]);
+
+    writeRepoFile(
+      repoPath,
+      "src/rewrite.ts",
+      [
+        "// bob line 1",
+        "export const a = 1;",
+        "// bob line 2",
+        "export const b = 2;",
+        "// bob line 3",
+        "export const c = 3;",
+      ].join("\n")
+    );
+    commitAs(
+      repoPath,
+      { name: "Bob Builder", email: "bob@example.com" },
+      daysAgo(150),
+      "bob initial rewrite file"
+    );
+
+    for (let index = 0; index < 5; index += 1) {
+      writeRepoFile(
+        repoPath,
+        "src/rewrite.ts",
+        `// bob tweak ${index}\nexport const v = ${index};\n`
+      );
+      commitAs(
+        repoPath,
+        { name: "Bob Builder", email: "bob@example.com" },
+        daysAgo(140 - index * 10),
+        `bob small edit ${index}`
+      );
+    }
+
+    writeRepoFile(
+      repoPath,
+      "src/rewrite.ts",
+      [
+        "// alice rewrite 1",
+        "export const x = 1;",
+        "// alice rewrite 2",
+        "export const y = 2;",
+        "// alice rewrite 3",
+        "export const z = 3;",
+        "// alice rewrite 4",
+        "export const w = 4;",
+      ].join("\n")
+    );
+    commitAs(
+      repoPath,
+      { name: "Alice Author", email: "alice@example.com" },
+      daysAgo(10),
+      "alice rewrites most lines"
+    );
+
+    headRevision = git(repoPath, ["rev-parse", "HEAD"]);
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("populates line-level fields from git blame at the analysis revision", () => {
+    const historySource = createGitHistorySource(repoPath);
+    const blameSource = createGitBlameSource(repoPath);
+    const findings = analyzeFamiliarity(
+      {
+        author: { name: "Alice Author", email: "alice@example.com" },
+        touchedPaths: ["src/rewrite.ts"],
+        historySource,
+        blameSource,
+        revision: headRevision,
+      },
+      REFERENCE_DATE
+    );
+
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.totalBlameableLineCount, 8);
+    assert.equal(findings[0]?.authorOwnedLineCount, 8);
+    assert.equal(findings[0]?.shareOfCurrentContent, 1);
+    assert.equal(findings[0]?.totalChangedLineCount, 8);
+    assert.equal(findings[0]?.authorChangedLineCount, 8);
+    assert.equal(findings[0]?.shareOfWindowedLineChurn, 1);
+  });
+
+  it("yields high characterization for single-rewrite with high line ownership", () => {
+    const historySource = createGitHistorySource(repoPath);
+    const blameSource = createGitBlameSource(repoPath);
+    const findings = analyzeFamiliarity(
+      {
+        author: { name: "Alice Author", email: "alice@example.com" },
+        touchedPaths: ["src/rewrite.ts"],
+        historySource,
+        blameSource,
+        revision: headRevision,
+      },
+      REFERENCE_DATE
+    );
+
+    assert.equal(findings[0]?.authorCommitCount, 1);
+    assert.equal(findings[0]?.characterization, "high");
+  });
+
+  it("dedupes touched paths and queries blame once per unique file", () => {
+    const historySource = createGitHistorySource(repoPath);
+    const blameSource = createGitBlameSource(repoPath);
+    const findings = analyzeFamiliarity(
+      {
+        author: { name: "Alice Author", email: "alice@example.com" },
+        touchedPaths: ["src/rewrite.ts", "src/rewrite.ts"],
+        historySource,
+        blameSource,
+        revision: headRevision,
+      },
+      REFERENCE_DATE
+    );
+
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0]?.authorOwnedLineCount, 8);
   });
 });
