@@ -527,6 +527,84 @@ describe("runEvidenceDemo", () => {
     }
   });
 
+  it("produces a complete end-to-end report when the changed file is a stylesheet", () => {
+    const stylesheetRepo = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-stylesheet-e2e-")
+    );
+    try {
+      git(stylesheetRepo, ["init"]);
+      git(stylesheetRepo, ["config", "user.name", "Setup"]);
+      git(stylesheetRepo, ["config", "user.email", "setup@example.com"]);
+
+      writeRepoFile(
+        stylesheetRepo,
+        "styles/_tokens.scss",
+        "$spacing: 8px;\n"
+      );
+      writeRepoFile(
+        stylesheetRepo,
+        "styles/theme.scss",
+        "@use 'tokens';\n\n.theme { padding: tokens.$spacing; }\n"
+      );
+      writeRepoFile(
+        stylesheetRepo,
+        "styles/main.scss",
+        "@forward './theme';\n\n.main { display: block; }\n"
+      );
+      writeRepoFile(
+        stylesheetRepo,
+        "src/App.tsx",
+        "import '../styles/main.scss';\nexport const App = () => null;\n"
+      );
+      commitAs(
+        stylesheetRepo,
+        { name: "Carol Core", email: "carol@example.com" },
+        daysAgo(90),
+        "init stylesheet chain"
+      );
+      const base = git(stylesheetRepo, ["rev-parse", "HEAD"]);
+
+      writeRepoFile(
+        stylesheetRepo,
+        "styles/_tokens.scss",
+        "$spacing: 16px;\n"
+      );
+      commitAs(
+        stylesheetRepo,
+        { name: "Dev User", email: "dev@example.com" },
+        daysAgo(15),
+        "dev updates tokens"
+      );
+      const head = git(stylesheetRepo, ["rev-parse", "HEAD"]);
+
+      const output = runEvidenceDemo(stylesheetRepo, `${base}...${head}`, {
+        asOf: REFERENCE_DATE,
+      });
+
+      assert.match(output, /Author: Dev User <dev@example.com>/);
+      assert.match(output, /Familiarity/);
+      assert.match(output, /styles\/_tokens\.scss —/);
+      assert.match(output, /Blast Radius/);
+      assert.match(output, /styles\/_tokens\.scss — moderate/);
+      assert.match(
+        output,
+        /Reach: 3 files transitively \(1 direct importer\), including styles\/theme\.scss\./
+      );
+      assert.match(output, /Limitations/);
+      assert.match(
+        output,
+        /Stylesheet reach follows static @import, @use, and @forward/
+      );
+      assert.doesNotMatch(output, /Not Analyzed for Blast Radius/);
+      assert.doesNotMatch(
+        output,
+        /styles\/_tokens\.scss[\s\S]*Not Analyzed for Blast Radius/
+      );
+    } finally {
+      rmSync(stylesheetRepo, { recursive: true, force: true });
+    }
+  });
+
   it("produces a complete end-to-end report against a TypeScript repo with importers", () => {
     const e2eRepo = mkdtempSync(path.join(os.tmpdir(), "evidence-demo-e2e-"));
     try {
