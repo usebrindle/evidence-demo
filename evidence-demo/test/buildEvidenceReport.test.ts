@@ -13,18 +13,30 @@ const author = { name: "Ada Lovelace", email: "ada@example.com" };
 const sampleFamiliarity: FamiliarityFinding[] = [
   {
     touchedFile: "src/util.ts",
+    authorOwnedLineCount: 0,
+    totalBlameableLineCount: 0,
+    shareOfCurrentContent: 0,
+    authorChangedLineCount: 0,
+    totalChangedLineCount: 0,
+    shareOfWindowedLineChurn: 0,
     authorCommitCount: 3,
     totalFileCommitCount: 12,
     lastTouchDate: new Date("2026-05-01T00:00:00Z"),
-    shareOfFileChurn: 0.25,
+    shareOfFileCommitChurn: 0.25,
     characterization: "high",
   },
   {
     touchedFile: "docs/guide.md",
+    authorOwnedLineCount: 0,
+    totalBlameableLineCount: 0,
+    shareOfCurrentContent: 0,
+    authorChangedLineCount: 0,
+    totalChangedLineCount: 0,
+    shareOfWindowedLineChurn: 0,
     authorCommitCount: 0,
     totalFileCommitCount: 4,
     lastTouchDate: null,
-    shareOfFileChurn: 0,
+    shareOfFileCommitChurn: 0,
     characterization: "none",
   },
 ];
@@ -76,7 +88,7 @@ describe("buildEvidenceReport", () => {
     assert.ok(srcFinding);
     assert.equal(srcFinding.authorCommitCount, 3);
     assert.equal(srcFinding.totalFileCommitCount, 12);
-    assert.equal(srcFinding.shareOfFileChurn, 0.25);
+    assert.equal(srcFinding.shareOfFileCommitChurn, 0.25);
     assert.equal(srcFinding.characterization, "high");
     assert.equal(
       srcFinding.lastTouchDate?.toISOString(),

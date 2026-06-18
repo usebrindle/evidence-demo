@@ -194,7 +194,7 @@ function formatFamiliarityDetail(
     return `Author has ${authorCommitsPhrase} to this file in 6 months (sole contributor in window), ${lastTouchPhrase}.`;
   }
 
-  const sharePhrase = ` (${formatShare(finding.shareOfFileChurn)} of file churn)`;
+  const sharePhrase = ` (${formatShare(finding.shareOfFileCommitChurn)} of file churn)`;
   const othersPhrase =
     othersCommitCount === 1
       ? "1 commit by others"

@@ -9,7 +9,9 @@ import {
   analyzeFamiliarity,
   characterizeFamiliarity,
   countAuthorCommitsToFile,
-  shareOfFileChurn,
+  shareOfCurrentContent,
+  shareOfFileCommitChurn,
+  shareOfWindowedLineChurn,
 } from "../src/analyzers/familiarity.js";
 import { createGitHistorySource } from "../src/inputs/gitHistorySource.js";
 
@@ -324,16 +326,42 @@ describe("analyzeFamiliarity", () => {
     assert.equal(findings[0]?.authorCommitCount, 1);
     assert.equal(findings[0]?.totalFileCommitCount, 2);
     assert.deepEqual(findings[0]?.lastTouchDate, daysAgo(20));
+    assert.equal(findings[0]?.authorOwnedLineCount, 0);
+    assert.equal(findings[0]?.totalBlameableLineCount, 0);
+    assert.equal(findings[0]?.shareOfCurrentContent, 0);
+    assert.equal(findings[0]?.authorChangedLineCount, 0);
+    assert.equal(findings[0]?.totalChangedLineCount, 0);
+    assert.equal(findings[0]?.shareOfWindowedLineChurn, 0);
   });
 });
 
-describe("shareOfFileChurn", () => {
+describe("shareOfFileCommitChurn", () => {
   it("returns author commits divided by total file commits", () => {
-    assert.equal(shareOfFileChurn(3, 12), 0.25);
+    assert.equal(shareOfFileCommitChurn(3, 12), 0.25);
   });
 
   it("returns zero when the file has no churn", () => {
-    assert.equal(shareOfFileChurn(0, 0), 0);
+    assert.equal(shareOfFileCommitChurn(0, 0), 0);
+  });
+});
+
+describe("shareOfCurrentContent", () => {
+  it("returns author-owned lines divided by total blameable lines", () => {
+    assert.equal(shareOfCurrentContent(25, 100), 0.25);
+  });
+
+  it("returns zero when the file has no blameable lines", () => {
+    assert.equal(shareOfCurrentContent(0, 0), 0);
+  });
+});
+
+describe("shareOfWindowedLineChurn", () => {
+  it("returns author-changed lines divided by total changed lines", () => {
+    assert.equal(shareOfWindowedLineChurn(10, 40), 0.25);
+  });
+
+  it("returns zero when no lines changed in the window", () => {
+    assert.equal(shareOfWindowedLineChurn(0, 0), 0);
   });
 });
 
@@ -341,19 +369,19 @@ describe("characterizeFamiliarity", () => {
   it("returns high when recent with enough commits", () => {
     const result = characterizeFamiliarity(3, 10, daysAgo(30), REFERENCE_DATE);
     assert.equal(result.characterization, "high");
-    assert.equal(result.shareOfFileChurn, 0.3);
+    assert.equal(result.shareOfFileCommitChurn, 0.3);
   });
 
   it("returns high when recent with high share but fewer than 3 commits", () => {
     const result = characterizeFamiliarity(2, 6, daysAgo(45), REFERENCE_DATE);
     assert.equal(result.characterization, "high");
-    assert.equal(result.shareOfFileChurn, 1 / 3);
+    assert.equal(result.shareOfFileCommitChurn, 1 / 3);
   });
 
   it("returns moderate when recent with one commit below high thresholds", () => {
     const result = characterizeFamiliarity(1, 20, daysAgo(90), REFERENCE_DATE);
     assert.equal(result.characterization, "moderate");
-    assert.equal(result.shareOfFileChurn, 0.05);
+    assert.equal(result.shareOfFileCommitChurn, 0.05);
   });
 
   it("returns moderate for two commits between 121 and 180 days ago", () => {
@@ -364,7 +392,7 @@ describe("characterizeFamiliarity", () => {
   it("returns none for zero commits", () => {
     const result = characterizeFamiliarity(0, 5, null, REFERENCE_DATE);
     assert.equal(result.characterization, "none");
-    assert.equal(result.shareOfFileChurn, 0);
+    assert.equal(result.shareOfFileCommitChurn, 0);
   });
 
   it("returns none for a single stale commit beyond 120 days", () => {
@@ -477,7 +505,7 @@ describe("analyzeFamiliarity characterization", () => {
     assert.equal(findings.length, 1);
     assert.equal(findings[0]?.authorCommitCount, 2);
     assert.equal(findings[0]?.totalFileCommitCount, 4);
-    assert.equal(findings[0]?.shareOfFileChurn, 0.5);
+    assert.equal(findings[0]?.shareOfFileCommitChurn, 0.5);
     assert.equal(findings[0]?.characterization, "high");
   });
 
@@ -495,7 +523,7 @@ describe("analyzeFamiliarity characterization", () => {
     assert.equal(findings.length, 1);
     assert.equal(findings[0]?.authorCommitCount, 1);
     assert.equal(findings[0]?.totalFileCommitCount, 2);
-    assert.equal(findings[0]?.shareOfFileChurn, 0.5);
+    assert.equal(findings[0]?.shareOfFileCommitChurn, 0.5);
     assert.equal(findings[0]?.characterization, "high");
     assert.deepEqual(findings[0]?.lastTouchDate, daysAgo(20));
   });
@@ -514,6 +542,6 @@ describe("analyzeFamiliarity characterization", () => {
     assert.equal(findings.length, 1);
     assert.equal(findings[0]?.authorCommitCount, 0);
     assert.equal(findings[0]?.characterization, "none");
-    assert.equal(findings[0]?.shareOfFileChurn, 0);
+    assert.equal(findings[0]?.shareOfFileCommitChurn, 0);
   });
 });
