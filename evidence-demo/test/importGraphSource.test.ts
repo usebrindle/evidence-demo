@@ -675,3 +675,138 @@ describe("createImportGraph SCSS @use and @forward", () => {
     });
   });
 });
+
+describe("createImportGraph Sass partial and index resolution", () => {
+  describe("partial _tokens.scss", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-scss-partial-")
+      );
+
+      writeRepoFile(repoPath, "styles/_tokens.scss", "$spacing: 8px;\n");
+      writeRepoFile(
+        repoPath,
+        "styles/theme.scss",
+        "@use 'tokens';\n\n.theme { padding: tokens.$spacing; }\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("resolves @use 'tokens' to _tokens.scss with reverse edge to theme.scss", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/_tokens.scss"), ["styles/theme.scss"]);
+    });
+
+    it("direct dependent count on changed _tokens.scss is 1", () => {
+      const graph = createImportGraph(repoPath);
+
+      const result = countDirectImportersForFile("styles/_tokens.scss", graph);
+
+      assert.equal(result.dependentCount, 1);
+      assert.deepEqual(result.dependents, ["styles/theme.scss"]);
+    });
+  });
+
+  describe("partial with ./ relative form", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(
+          os.tmpdir(),
+          "evidence-demo-import-graph-scss-partial-relative-"
+        )
+      );
+
+      writeRepoFile(repoPath, "styles/_mixins.scss", "@mixin flex { display: flex; }\n");
+      writeRepoFile(
+        repoPath,
+        "styles/components.scss",
+        "@use './mixins';\n\n.card { @include mixins.flex; }\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("resolves @use './mixins' to _mixins.scss", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/_mixins.scss"), ["styles/components.scss"]);
+    });
+  });
+
+  describe("index file resolution", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-scss-index-")
+      );
+
+      writeRepoFile(repoPath, "styles/_index.scss", "@forward './tokens';\n");
+      writeRepoFile(repoPath, "styles/_tokens.scss", "$color: blue;\n");
+      writeRepoFile(
+        repoPath,
+        "src/app.scss",
+        "@use '../styles/index';\n\n.app { color: index.$color; }\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("resolves styles/index to _index.scss", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/_index.scss"), ["src/app.scss"]);
+    });
+  });
+
+  describe("path alias resolution", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-scss-alias-")
+      );
+
+      writeRepoFile(
+        repoPath,
+        "tsconfig.json",
+        JSON.stringify({
+          compilerOptions: {
+            baseUrl: ".",
+            paths: {
+              "@styles/*": ["styles/*"],
+            },
+          },
+        })
+      );
+      writeRepoFile(repoPath, "styles/_tokens.scss", "$spacing: 8px;\n");
+      writeRepoFile(
+        repoPath,
+        "styles/theme.scss",
+        "@use '@styles/tokens';\n\n.theme { padding: tokens.$spacing; }\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("resolves aliased stylesheet specifiers via tsconfig paths", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/_tokens.scss"), ["styles/theme.scss"]);
+    });
+  });
+});

@@ -131,6 +131,49 @@ function resolveRelativeModule(
   return null;
 }
 
+const STYLESHEET_EXTENSIONS = ["scss", "sass", "css"] as const;
+
+function buildStylesheetResolutionCandidates(relativeBase: string): string[] {
+  const normalized = relativeBase.replace(/\\/g, "/");
+
+  if (/\.(css|scss|sass)$/.test(normalized)) {
+    return [normalized];
+  }
+
+  const slashIndex = normalized.lastIndexOf("/");
+  const dir = slashIndex === -1 ? "" : normalized.slice(0, slashIndex);
+  const base = slashIndex === -1 ? normalized : normalized.slice(slashIndex + 1);
+  const prefix = dir.length === 0 ? "" : `${dir}/`;
+
+  const candidates: string[] = [
+    normalized,
+    ...STYLESHEET_EXTENSIONS.map((ext) => `${normalized}.${ext}`),
+  ];
+
+  for (const ext of STYLESHEET_EXTENSIONS) {
+    candidates.push(`${prefix}_${base}.${ext}`);
+  }
+  for (const ext of STYLESHEET_EXTENSIONS) {
+    candidates.push(`${prefix}${base}.${ext}`);
+  }
+
+  return candidates;
+}
+
+function resolveFirstExistingStylesheetCandidate(
+  repoPath: string,
+  candidates: readonly string[]
+): string | null {
+  for (const candidate of candidates) {
+    const full = path.join(repoPath, candidate);
+    if (existsSync(full) && statSync(full).isFile()) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 function resolveRelativeStylesheetModule(
   repoPath: string,
   importerRelativePath: string,
@@ -140,17 +183,100 @@ function resolveRelativeStylesheetModule(
   const joined = path.resolve(importerDir, specifier);
   const relativeBase = normalizeRepoPath(path.relative(repoPath, joined));
 
-  const candidates = [
-    relativeBase,
-    `${relativeBase}.css`,
-    `${relativeBase}.scss`,
-    `${relativeBase}.sass`,
-  ];
+  if (relativeBase.startsWith("..")) {
+    return null;
+  }
 
-  for (const candidate of candidates) {
-    const full = path.join(repoPath, candidate);
-    if (existsSync(full) && statSync(full).isFile()) {
-      return candidate;
+  return resolveFirstExistingStylesheetCandidate(
+    repoPath,
+    buildStylesheetResolutionCandidates(relativeBase)
+  );
+}
+
+function resolvePathAliasToStylesheetCandidates(
+  specifier: string,
+  compilerOptions: ts.CompilerOptions,
+  configDir: string
+): string[] {
+  const paths = compilerOptions.paths;
+  if (!paths) {
+    return [];
+  }
+
+  const baseUrl = compilerOptions.baseUrl ?? ".";
+  const absoluteBase = path.resolve(configDir, baseUrl);
+  const candidates: string[] = [];
+
+  for (const [pattern, replacements] of Object.entries(paths)) {
+    const starIndex = pattern.indexOf("*");
+    if (starIndex === -1) {
+      if (specifier !== pattern) {
+        continue;
+      }
+
+      for (const replacement of replacements) {
+        candidates.push(path.resolve(absoluteBase, replacement));
+      }
+      continue;
+    }
+
+    const prefix = pattern.slice(0, starIndex);
+    const suffix = pattern.slice(starIndex + 1);
+    if (!specifier.startsWith(prefix) || !specifier.endsWith(suffix)) {
+      continue;
+    }
+
+    const matched = specifier.slice(prefix.length, specifier.length - suffix.length);
+    for (const replacement of replacements) {
+      candidates.push(
+        path.resolve(absoluteBase, replacement.replace("*", matched))
+      );
+    }
+  }
+
+  return candidates;
+}
+
+function resolveAliasedStylesheetModule(
+  repoPath: string,
+  importerRelativePath: string,
+  specifier: string,
+  compilerOptions: ts.CompilerOptions
+): string | null {
+  const aliased = resolveAliasedModule(
+    repoPath,
+    importerRelativePath,
+    specifier,
+    compilerOptions
+  );
+  if (aliased !== null && isStylesheetFile(aliased)) {
+    return aliased;
+  }
+
+  const configPath = findTsConfig(repoPath);
+  if (configPath === null) {
+    return null;
+  }
+
+  const configDir = path.dirname(configPath);
+  const aliasCandidates = resolvePathAliasToStylesheetCandidates(
+    specifier,
+    compilerOptions,
+    configDir
+  );
+
+  for (const absoluteCandidate of aliasCandidates) {
+    if (!isPathInsideRepo(repoPath, absoluteCandidate)) {
+      continue;
+    }
+
+    const relativeBase = normalizeRepoPath(path.relative(repoPath, absoluteCandidate));
+    const resolved = resolveFirstExistingStylesheetCandidate(
+      repoPath,
+      buildStylesheetResolutionCandidates(relativeBase)
+    );
+    if (resolved !== null) {
+      return resolved;
     }
   }
 
@@ -381,16 +507,39 @@ function extractScssStylesheetSpecifiers(
 function resolveStylesheetModule(
   repoPath: string,
   importerRelativePath: string,
-  specifier: string
+  specifier: string,
+  compilerOptions: ts.CompilerOptions | null
 ): string | null {
   if (specifier.startsWith("sass:")) {
     return null;
   }
 
-  return resolveRelativeStylesheetModule(
+  if (specifier.startsWith(".")) {
+    return resolveRelativeStylesheetModule(
+      repoPath,
+      importerRelativePath,
+      specifier
+    );
+  }
+
+  const relative = resolveRelativeStylesheetModule(
     repoPath,
     importerRelativePath,
     specifier
+  );
+  if (relative !== null) {
+    return relative;
+  }
+
+  if (compilerOptions === null) {
+    return null;
+  }
+
+  return resolveAliasedStylesheetModule(
+    repoPath,
+    importerRelativePath,
+    specifier,
+    compilerOptions
   );
 }
 
@@ -422,7 +571,12 @@ export function createImportGraph(repoPath: string): ImportGraph {
           : [];
 
       for (const specifier of specifiers) {
-        const target = resolveStylesheetModule(resolvedRepo, file, specifier);
+        const target = resolveStylesheetModule(
+          resolvedRepo,
+          file,
+          specifier,
+          compilerOptions
+        );
         if (target === null) {
           continue;
         }
