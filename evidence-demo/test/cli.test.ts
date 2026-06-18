@@ -509,7 +509,7 @@ describe("runEvidenceDemo", () => {
     }
   });
 
-  it("shows high familiarity for single-rewrite when line ownership outweighs one commit", () => {
+  it("shows high familiarity for pre-PR single-rewrite regression", () => {
     const rewriteRepo = mkdtempSync(
       path.join(os.tmpdir(), "evidence-demo-single-rewrite-e2e-")
     );
@@ -589,7 +589,8 @@ describe("runEvidenceDemo", () => {
       assert.match(output, /Author: Alice Author <alice@example.com>/);
       assert.match(output, /Familiarity/);
       assert.match(output, /src\/rewrite\.ts — high/);
-      assert.match(output, /Author owned .* of lines/);
+      assert.match(output, /Author owned 100% of lines/);
+      assert.match(output, /before this PR/);
       assert.match(output, /1 commit, last touch 10 days ago/);
       assert.match(output, /6 commits by others in window/);
     } finally {
