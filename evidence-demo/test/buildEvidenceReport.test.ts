@@ -218,13 +218,18 @@ describe("buildEvidenceReport", () => {
     assert.ok(
       report.limitations.some(
         (item) =>
-          item.includes("git blame at PR head") &&
-          item.includes("current content ownership") &&
+          item.includes("git blame at merge-base") &&
+          item.includes("content ownership") &&
           item.includes("windowed line churn") &&
-          item.includes("git log") &&
+          item.includes("git log up to merge-base only") &&
+          item.includes("PR commits and line changes") &&
+          item.includes("excluded") &&
           item.includes("Commit-share is reported separately") &&
           item.includes("not a substitute for line ownership")
       )
+    );
+    assert.ok(
+      report.limitations.every((item) => !item.includes("git blame at PR head"))
     );
     assert.ok(
       report.limitations.some(

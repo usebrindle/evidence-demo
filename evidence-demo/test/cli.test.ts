@@ -131,9 +131,8 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /Evidence Report/);
     assert.match(output, /Author: Alice Author <alice@example.com>/);
     assert.match(output, /Familiarity/);
-    assert.match(output, /src\/auth\.ts — (high|moderate|none)/);
-    assert.match(output, /Author owns .* of current lines/);
-    assert.match(output, /2 commits, last touch 10 days ago/);
+    assert.match(output, /src\/auth\.ts — none/);
+    assert.match(output, /No author commits to this file in 6 months/);
     assert.match(output, /Blast Radius/);
     assert.match(output, /src\/auth\.ts — isolated/);
     assert.match(output, /Depended on by 2 modules, including src\/login\.ts, src\/signup\.ts/);
@@ -318,10 +317,9 @@ describe("runEvidenceDemo", () => {
       assert.match(output, /Changed files \(2\):/);
       assert.match(output, /Familiarity/);
       assert.match(output, /src\/foo\.ts — high/);
-      assert.match(output, /Author owns .* of current lines/);
-      assert.match(output, /4 commits, last touch 5 days ago/);
-      assert.match(output, /src\/bar\.ts — high/);
-      assert.match(output, /1 commit, last touch 5 days ago/);
+      assert.match(output, /Author owned .* of lines/);
+      assert.match(output, /3 commits, last touch 20 days ago/);
+      assert.match(output, /src\/bar\.ts — none/);
       assert.doesNotMatch(output, /src\/ —/);
     } finally {
       rmSync(famRepo, { recursive: true, force: true });
@@ -447,7 +445,71 @@ describe("runEvidenceDemo", () => {
     }
   });
 
-  it("shows high familiarity for single-rewrite when line ownership outweighs one commit", () => {
+  it("shows none familiarity when the author's only history on a file is the PR itself", () => {
+    const firstTouchRepo = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-first-touch-e2e-")
+    );
+    try {
+      git(firstTouchRepo, ["init"]);
+      git(firstTouchRepo, ["config", "user.name", "Setup"]);
+      git(firstTouchRepo, ["config", "user.email", "setup@example.com"]);
+
+      writeRepoFile(
+        firstTouchRepo,
+        "src/existing.ts",
+        "export const existing = 1;\n"
+      );
+      commitAs(
+        firstTouchRepo,
+        { name: "Bob Builder", email: "bob@example.com" },
+        daysAgo(150),
+        "bob creates existing file"
+      );
+
+      for (let index = 0; index < 3; index += 1) {
+        writeRepoFile(
+          firstTouchRepo,
+          "src/existing.ts",
+          `export const existing = ${index + 2};\n`
+        );
+        commitAs(
+          firstTouchRepo,
+          { name: "Bob Builder", email: "bob@example.com" },
+          daysAgo(120 - index * 20),
+          `bob updates existing ${index}`
+        );
+      }
+      const base = git(firstTouchRepo, ["rev-parse", "HEAD"]);
+
+      writeRepoFile(
+        firstTouchRepo,
+        "src/existing.ts",
+        "export const existing = 99;\n"
+      );
+      commitAs(
+        firstTouchRepo,
+        { name: "Alice Author", email: "alice@example.com" },
+        daysAgo(5),
+        "alice first touch on existing file"
+      );
+      const head = git(firstTouchRepo, ["rev-parse", "HEAD"]);
+
+      const output = runEvidenceDemo(firstTouchRepo, `${base}...${head}`, {
+        asOf: REFERENCE_DATE,
+      });
+
+      assert.match(output, /Author: Alice Author <alice@example.com>/);
+      assert.match(output, /Familiarity/);
+      assert.match(output, /src\/existing\.ts — none/);
+      assert.doesNotMatch(output, /src\/existing\.ts — moderate/);
+      assert.match(output, /before this PR/);
+      assert.match(output, /no author commits in window/);
+    } finally {
+      rmSync(firstTouchRepo, { recursive: true, force: true });
+    }
+  });
+
+  it("shows high familiarity for pre-PR single-rewrite regression", () => {
     const rewriteRepo = mkdtempSync(
       path.join(os.tmpdir(), "evidence-demo-single-rewrite-e2e-")
     );
@@ -488,7 +550,6 @@ describe("runEvidenceDemo", () => {
           `bob small edit ${index}`
         );
       }
-      const base = git(rewriteRepo, ["rev-parse", "HEAD"]);
 
       writeRepoFile(
         rewriteRepo,
@@ -510,6 +571,15 @@ describe("runEvidenceDemo", () => {
         daysAgo(10),
         "alice rewrites most lines"
       );
+      const base = git(rewriteRepo, ["rev-parse", "HEAD"]);
+
+      writeRepoFile(rewriteRepo, "src/rewrite.ts", "// alice follow-up\nexport const x = 2;\n");
+      commitAs(
+        rewriteRepo,
+        { name: "Alice Author", email: "alice@example.com" },
+        daysAgo(5),
+        "alice small follow-up edit"
+      );
       const head = git(rewriteRepo, ["rev-parse", "HEAD"]);
 
       const output = runEvidenceDemo(rewriteRepo, `${base}...${head}`, {
@@ -519,7 +589,8 @@ describe("runEvidenceDemo", () => {
       assert.match(output, /Author: Alice Author <alice@example.com>/);
       assert.match(output, /Familiarity/);
       assert.match(output, /src\/rewrite\.ts — high/);
-      assert.match(output, /Author owns .* of current lines/);
+      assert.match(output, /Author owned 100% of lines/);
+      assert.match(output, /before this PR/);
       assert.match(output, /1 commit, last touch 10 days ago/);
       assert.match(output, /6 commits by others in window/);
     } finally {

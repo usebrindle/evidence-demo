@@ -133,6 +133,7 @@ describe("createGitHistorySource", () => {
       authorEmail: "alice@example.com",
       path: "src/foo.ts",
       since: historyWindowSince(REFERENCE_DATE),
+      revision: "HEAD",
     });
 
     assert.equal(stats.authorCommitCount, 2);
@@ -144,6 +145,7 @@ describe("createGitHistorySource", () => {
       authorEmail: "alice@example.com",
       path: "src/foo.ts",
       since: historyWindowSince(REFERENCE_DATE),
+      revision: "HEAD",
     });
 
     assert.equal(stats.totalCommitCount, 4);
@@ -155,6 +157,7 @@ describe("createGitHistorySource", () => {
       authorEmail: "alice@example.com",
       path: "src/foo.ts",
       since: historyWindowSince(REFERENCE_DATE),
+      revision: "HEAD",
     });
 
     assert.ok(stats.lastTouchDate);
@@ -170,6 +173,7 @@ describe("createGitHistorySource", () => {
       authorEmail: "charlie@example.com",
       path: "src/foo.ts",
       since: historyWindowSince(REFERENCE_DATE),
+      revision: "HEAD",
     });
 
     assert.equal(stats.authorCommitCount, 0);
@@ -183,6 +187,7 @@ describe("createGitHistorySource", () => {
       authorEmail: "bob@example.com",
       path: "src/",
       since: historyWindowSince(REFERENCE_DATE),
+      revision: "HEAD",
     });
 
     assert.equal(stats.authorCommitCount, 3);
@@ -195,10 +200,100 @@ describe("createGitHistorySource", () => {
       authorEmail: "alice@example.com",
       path: "src/foo.ts",
       since: historyWindowSince(REFERENCE_DATE),
+      revision: "HEAD",
     });
 
     assert.notEqual(stats.authorCommitCount, 3);
     assert.notEqual(stats.totalCommitCount, 5);
+  });
+});
+
+describe("createGitHistorySource revision stop point", () => {
+  let repoPath = "";
+  let mergeBase = "";
+  let mergeBaseTouch: Date;
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-git-history-revision-")
+    );
+    git(repoPath, ["init"]);
+    git(repoPath, ["config", "user.name", "Setup"]);
+    git(repoPath, ["config", "user.email", "setup@example.com"]);
+
+    writeRepoFile(repoPath, "src/foo.ts", "export const foo = 1;\n");
+    commitAs(
+      repoPath,
+      { name: "Bob Builder", email: "bob@example.com" },
+      daysAgo(150),
+      "bob initial foo"
+    );
+
+    writeRepoFile(repoPath, "src/foo.ts", "export const foo = 2;\n");
+    commitAs(
+      repoPath,
+      { name: "Alice Author", email: "alice@example.com" },
+      daysAgo(90),
+      "alice pre-merge-base foo"
+    );
+
+    mergeBaseTouch = daysAgo(60);
+    writeRepoFile(repoPath, "src/foo.ts", "export const foo = 3;\n");
+    commitAs(
+      repoPath,
+      { name: "Alice Author", email: "alice@example.com" },
+      mergeBaseTouch,
+      "alice at merge-base foo"
+    );
+    mergeBase = git(repoPath, ["rev-parse", "HEAD"]);
+
+    git(repoPath, ["branch", "-M", "main"]);
+    git(repoPath, ["checkout", "-b", "feature/pr"]);
+
+    writeRepoFile(repoPath, "src/foo.ts", "export const foo = 4;\n");
+    commitAs(
+      repoPath,
+      { name: "Alice Author", email: "alice@example.com" },
+      daysAgo(5),
+      "alice pr-only foo"
+    );
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("does not count author commits on the PR branch after merge-base", () => {
+    const source = createGitHistorySource(repoPath);
+    const statsAtMergeBase = source.query({
+      authorEmail: "alice@example.com",
+      path: "src/foo.ts",
+      since: historyWindowSince(REFERENCE_DATE),
+      revision: mergeBase,
+    });
+    const statsAtHead = source.query({
+      authorEmail: "alice@example.com",
+      path: "src/foo.ts",
+      since: historyWindowSince(REFERENCE_DATE),
+      revision: "HEAD",
+    });
+
+    assert.equal(statsAtMergeBase.authorCommitCount, 2);
+    assert.equal(statsAtHead.authorCommitCount, 3);
+  });
+
+  it("counts author commits at merge-base and before", () => {
+    const source = createGitHistorySource(repoPath);
+    const stats = source.query({
+      authorEmail: "alice@example.com",
+      path: "src/foo.ts",
+      since: historyWindowSince(REFERENCE_DATE),
+      revision: mergeBase,
+    });
+
+    assert.equal(stats.authorCommitCount, 2);
+    assert.ok(stats.lastTouchDate);
+    assert.equal(stats.lastTouchDate!.toISOString(), mergeBaseTouch.toISOString());
   });
 });
 

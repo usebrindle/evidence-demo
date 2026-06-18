@@ -150,6 +150,7 @@ describe("countAuthorCommitsToFile", () => {
       { name: "Alice Author", email: "alice@example.com" },
       "src/foo.ts",
       historySource,
+      "HEAD",
       REFERENCE_DATE
     );
 
@@ -162,6 +163,7 @@ describe("countAuthorCommitsToFile", () => {
       { name: "Charlie Coder", email: "charlie@example.com" },
       "src/foo.ts",
       historySource,
+      "HEAD",
       REFERENCE_DATE
     );
 
@@ -174,6 +176,7 @@ describe("countAuthorCommitsToFile", () => {
       { name: "Alice Author", email: "alice@example.com" },
       "src/bar.ts",
       historySource,
+      "HEAD",
       REFERENCE_DATE
     );
 
@@ -186,6 +189,7 @@ describe("countAuthorCommitsToFile", () => {
       { name: "Alice Author", email: "alice@example.com" },
       "src/foo.ts",
       historySource,
+      "HEAD",
       REFERENCE_DATE
     );
 
@@ -281,7 +285,7 @@ describe("analyzeFamiliarity", () => {
         touchedPaths: ["src/foo.ts"],
         historySource,
         blameSource: createZeroBlameSource(),
-        revision: "HEAD",
+        baseRevision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -300,7 +304,7 @@ describe("analyzeFamiliarity", () => {
         touchedPaths: ["src/foo.ts", "src/bar.ts"],
         historySource,
         blameSource: createZeroBlameSource(),
-        revision: "HEAD",
+        baseRevision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -320,7 +324,7 @@ describe("analyzeFamiliarity", () => {
         touchedPaths: ["src/foo.ts", "src/bar.ts", "lib/util.ts"],
         historySource,
         blameSource: createZeroBlameSource(),
-        revision: "HEAD",
+        baseRevision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -338,7 +342,7 @@ describe("analyzeFamiliarity", () => {
         touchedPaths: ["lib/util.ts"],
         historySource,
         blameSource: createZeroBlameSource(),
-        revision: "HEAD",
+        baseRevision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -411,14 +415,19 @@ describe("characterizeFamiliarity", () => {
     assert.equal(result.characterization, "high");
   });
 
-  it("returns moderate when recent with one commit and low line shares", () => {
+  it("returns none when recent with one commit and low line shares", () => {
     const result = characterizeFamiliarity(1, 20, daysAgo(90), 0, 0, REFERENCE_DATE);
-    assert.equal(result.characterization, "moderate");
+    assert.equal(result.characterization, "none");
     assert.equal(result.shareOfFileCommitChurn, 0.05);
   });
 
   it("returns moderate when recent with moderate line ownership below high threshold", () => {
     const result = characterizeFamiliarity(1, 10, daysAgo(90), 0.15, 0, REFERENCE_DATE);
+    assert.equal(result.characterization, "moderate");
+  });
+
+  it("returns moderate for two commits within 120 days and low line shares", () => {
+    const result = characterizeFamiliarity(2, 10, daysAgo(30), 0, 0, REFERENCE_DATE);
     assert.equal(result.characterization, "moderate");
   });
 
@@ -547,7 +556,7 @@ describe("analyzeFamiliarity characterization", () => {
         touchedPaths: ["src/foo.ts"],
         historySource,
         blameSource: createZeroBlameSource(),
-        revision: "HEAD",
+        baseRevision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -567,7 +576,7 @@ describe("analyzeFamiliarity characterization", () => {
         touchedPaths: ["lib/util.ts"],
         historySource,
         blameSource: createZeroBlameSource(),
-        revision: "HEAD",
+        baseRevision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -576,7 +585,7 @@ describe("analyzeFamiliarity characterization", () => {
     assert.equal(findings[0]?.authorCommitCount, 1);
     assert.equal(findings[0]?.totalFileCommitCount, 2);
     assert.equal(findings[0]?.shareOfFileCommitChurn, 0.5);
-    assert.equal(findings[0]?.characterization, "moderate");
+    assert.equal(findings[0]?.characterization, "none");
     assert.deepEqual(findings[0]?.lastTouchDate, daysAgo(20));
   });
 
@@ -588,7 +597,7 @@ describe("analyzeFamiliarity characterization", () => {
         touchedPaths: ["src/foo.ts"],
         historySource,
         blameSource: createZeroBlameSource(),
-        revision: "HEAD",
+        baseRevision: "HEAD",
       },
       REFERENCE_DATE
     );
@@ -602,7 +611,7 @@ describe("analyzeFamiliarity characterization", () => {
 
 describe("analyzeFamiliarity with git blame integration", () => {
   let repoPath = "";
-  let headRevision = "";
+  let baseRevision = "";
 
   before(() => {
     repoPath = mkdtempSync(
@@ -666,7 +675,7 @@ describe("analyzeFamiliarity with git blame integration", () => {
       "alice rewrites most lines"
     );
 
-    headRevision = git(repoPath, ["rev-parse", "HEAD"]);
+    baseRevision = git(repoPath, ["rev-parse", "HEAD"]);
   });
 
   after(() => {
@@ -682,7 +691,7 @@ describe("analyzeFamiliarity with git blame integration", () => {
         touchedPaths: ["src/rewrite.ts"],
         historySource,
         blameSource,
-        revision: headRevision,
+        baseRevision,
       },
       REFERENCE_DATE
     );
@@ -705,7 +714,7 @@ describe("analyzeFamiliarity with git blame integration", () => {
         touchedPaths: ["src/rewrite.ts"],
         historySource,
         blameSource,
-        revision: headRevision,
+        baseRevision,
       },
       REFERENCE_DATE
     );
@@ -723,7 +732,7 @@ describe("analyzeFamiliarity with git blame integration", () => {
         touchedPaths: ["src/rewrite.ts", "src/rewrite.ts"],
         historySource,
         blameSource,
-        revision: headRevision,
+        baseRevision,
       },
       REFERENCE_DATE
     );

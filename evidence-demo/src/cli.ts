@@ -36,7 +36,7 @@ export function runEvidenceDemo(
   const resolvedRepo = path.resolve(repoPath);
   const asOf = options.asOf ?? new Date();
 
-  const { changedFiles, author, headRevision } = resolveChangedFiles({
+  const { changedFiles, author, baseRevision } = resolveChangedFiles({
     repoPath: resolvedRepo,
     prOrRange,
   });
@@ -49,7 +49,7 @@ export function runEvidenceDemo(
       touchedPaths: changedFiles,
       historySource,
       blameSource,
-      revision: headRevision,
+      baseRevision,
     },
     asOf
   );

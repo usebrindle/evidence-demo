@@ -28,8 +28,8 @@ export interface FamiliarityInput {
   touchedPaths: readonly string[];
   historySource: GitHistorySource;
   blameSource: GitBlameSource;
-  /** Analysis commit (e.g. PR head SHA) for git blame at current content. */
-  revision: string;
+  /** Merge-base (or explicit range base) — measurement stop point for blame and history. */
+  baseRevision: string;
 }
 
 /**
@@ -40,12 +40,14 @@ export function countAuthorCommitsToFile(
   author: AuthorIdentity,
   touchedPath: string,
   historySource: GitHistorySource,
+  revision: string,
   asOf: Date = new Date()
 ): number {
   const stats = historySource.query({
     authorEmail: author.email,
     path: touchedPath,
     since: historyWindowSince(asOf),
+    revision,
   });
   return stats.authorCommitCount;
 }
@@ -129,7 +131,7 @@ export function characterizeFamiliarity(
   }
 
   const qualifiesForModerate =
-    (recencyDays <= 120 && authorCommitCount >= 1) ||
+    (recencyDays <= 120 && authorCommitCount >= 2) ||
     (recencyDays > 120 &&
       recencyDays <= 180 &&
       authorCommitCount >= 2) ||
@@ -159,12 +161,13 @@ export function analyzeFamiliarity(
       authorEmail: input.author.email,
       path: touchedFile,
       since,
+      revision: input.baseRevision,
     });
 
     const blameStats = input.blameSource.query({
       path: touchedFile,
       authorEmail: input.author.email,
-      revision: input.revision,
+      revision: input.baseRevision,
       since,
     });
 
