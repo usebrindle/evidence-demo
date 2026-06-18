@@ -42,8 +42,7 @@ export function buildEvidenceReport(
     blastRadius: input.blastRadius,
     notAnalyzedForBlastRadius,
     limitations: [
-      "Direct static dependents only; transitive dependency impact is not computed.",
-      "Blast radius counts static ESM import and static-literal CommonJS require() dependents; dynamic require(), runtime indirection, and non-literal dynamic import() are not counted; non-source files are excluded.",
+      "Transitive reach and direct dependent counts follow static ESM import and static-literal CommonJS require() chains; dynamic require(), runtime indirection, and non-literal dynamic import() are not counted; non-source files are excluded.",
       "On platforms with non-import/require wiring (e.g. SFCC cartridge paths), blast-radius counts may be a lower bound.",
       "Path aliases are resolved only from the repository root tsconfig.json or jsconfig.json (compilerOptions.paths / baseUrl). Aliases defined only in bundler config (e.g. Vite, Webpack) or nested package configs are not applied.",
       "Git history does not account for renames, squashes, co-authored commits, or bot attribution.",

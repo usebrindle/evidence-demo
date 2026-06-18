@@ -164,7 +164,16 @@ describe("buildEvidenceReport", () => {
 
     assert.ok(report.limitations.length >= 3);
     assert.ok(
-      report.limitations.some((item) => item.includes("transitive dependency"))
+      report.limitations.some(
+        (item) =>
+          item.includes("Transitive reach") &&
+          item.includes("static ESM import and static-literal CommonJS require()")
+      )
+    );
+    assert.ok(
+      report.limitations.every(
+        (item) => !item.includes("transitive dependency impact is not computed")
+      )
     );
     assert.ok(
       report.limitations.some((item) =>
