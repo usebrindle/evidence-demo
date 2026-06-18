@@ -24,6 +24,10 @@ function writeRepoFile(
   writeFileSync(fullPath, contents, "utf8");
 }
 
+function assertValidSha(sha: string): void {
+  assert.match(sha, /^[0-9a-f]{40}$/, "expected a full 40-character git SHA");
+}
+
 describe("resolveChangedFiles", () => {
   let repoPath = "";
   let mainCommit = "";
@@ -73,6 +77,8 @@ describe("resolveChangedFiles", () => {
     ]);
     assert.equal(result.author.name, "Alice Author");
     assert.equal(result.author.email, "alice@example.com");
+    assertValidSha(result.headRevision);
+    assert.equal(result.headRevision, featureCommit);
   });
 
   it("resolves a branch name against the default branch", () => {
@@ -86,6 +92,8 @@ describe("resolveChangedFiles", () => {
       "src/auth.ts",
     ]);
     assert.equal(result.author.email, "alice@example.com");
+    assertValidSha(result.headRevision);
+    assert.equal(result.headRevision, featureCommit);
   });
 
   it("resolves a locally available pull request ref", () => {
@@ -99,6 +107,8 @@ describe("resolveChangedFiles", () => {
       "src/auth.ts",
     ]);
     assert.equal(result.author.name, "Alice Author");
+    assertValidSha(result.headRevision);
+    assert.equal(result.headRevision, featureCommit);
   });
 
   it("returns an empty list when the range has no file changes", () => {
@@ -109,5 +119,7 @@ describe("resolveChangedFiles", () => {
 
     assert.deepEqual(result.changedFiles, []);
     assert.equal(result.author.email, "alice@example.com");
+    assertValidSha(result.headRevision);
+    assert.equal(result.headRevision, mainCommit);
   });
 });

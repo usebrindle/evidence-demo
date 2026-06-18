@@ -36,7 +36,7 @@ export function runEvidenceDemo(
   const resolvedRepo = path.resolve(repoPath);
   const asOf = options.asOf ?? new Date();
 
-  const { changedFiles, author } = resolveChangedFiles({
+  const { changedFiles, author, headRevision } = resolveChangedFiles({
     repoPath: resolvedRepo,
     prOrRange,
   });
@@ -49,8 +49,7 @@ export function runEvidenceDemo(
       touchedPaths: changedFiles,
       historySource,
       blameSource,
-      // US-006 will pass PR head SHA from resolveChangedFiles.headRevision
-      revision: "HEAD",
+      revision: headRevision,
     },
     asOf
   );
