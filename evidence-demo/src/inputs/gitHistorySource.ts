@@ -12,6 +12,8 @@ export interface GitHistoryQuery {
   authorEmail: string;
   path: string;
   since: Date;
+  /** Measurement stop point (e.g. merge-base); excludes descendant commits. */
+  revision: string;
 }
 
 export interface GitHistoryStats {
@@ -69,6 +71,7 @@ export function createGitHistorySource(repoPath: string): GitHistorySource {
         "log",
         `--since=${since}`,
         "--format=%H",
+        query.revision,
         "--",
         pathFilter,
       ]);
@@ -78,6 +81,7 @@ export function createGitHistorySource(repoPath: string): GitHistorySource {
         `--since=${since}`,
         `--author=${query.authorEmail}`,
         "--format=%H",
+        query.revision,
         "--",
         pathFilter,
       ]);
@@ -90,6 +94,7 @@ export function createGitHistorySource(repoPath: string): GitHistorySource {
           `--author=${query.authorEmail}`,
           "--format=%aI",
           "-1",
+          query.revision,
           "--",
           pathFilter,
         ]);

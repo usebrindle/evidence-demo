@@ -150,6 +150,7 @@ describe("countAuthorCommitsToFile", () => {
       { name: "Alice Author", email: "alice@example.com" },
       "src/foo.ts",
       historySource,
+      "HEAD",
       REFERENCE_DATE
     );
 
@@ -162,6 +163,7 @@ describe("countAuthorCommitsToFile", () => {
       { name: "Charlie Coder", email: "charlie@example.com" },
       "src/foo.ts",
       historySource,
+      "HEAD",
       REFERENCE_DATE
     );
 
@@ -174,6 +176,7 @@ describe("countAuthorCommitsToFile", () => {
       { name: "Alice Author", email: "alice@example.com" },
       "src/bar.ts",
       historySource,
+      "HEAD",
       REFERENCE_DATE
     );
 
@@ -186,6 +189,7 @@ describe("countAuthorCommitsToFile", () => {
       { name: "Alice Author", email: "alice@example.com" },
       "src/foo.ts",
       historySource,
+      "HEAD",
       REFERENCE_DATE
     );
 

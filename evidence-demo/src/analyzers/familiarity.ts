@@ -40,12 +40,14 @@ export function countAuthorCommitsToFile(
   author: AuthorIdentity,
   touchedPath: string,
   historySource: GitHistorySource,
+  revision: string,
   asOf: Date = new Date()
 ): number {
   const stats = historySource.query({
     authorEmail: author.email,
     path: touchedPath,
     since: historyWindowSince(asOf),
+    revision,
   });
   return stats.authorCommitCount;
 }
@@ -159,6 +161,7 @@ export function analyzeFamiliarity(
       authorEmail: input.author.email,
       path: touchedFile,
       since,
+      revision: input.revision,
     });
 
     const blameStats = input.blameSource.query({
