@@ -8,6 +8,8 @@ Assemble the findings from the familiarity analyzer (LLD 0001) and the blast-rad
 
 The acceptance test is whether a senior engineer reads the report and says "yes, that is actually why this PR is or is not risky." So the report is designed for that reader. It leads with the evidence and the supporting numbers, not a verdict. It shows, per changed file, the author's familiarity with the numbers behind it, and per changed JavaScript or TypeScript source file, the blast radius with the dependents named. It is honest about what it does not compute, because stated limitations are what make the computed parts trustworthy to a skeptic.
 
+Blast-radius lines lead with transitive reach as the headline number and show direct dependent count when it adds information (for example, when a file has one direct importer but many transitive dependents). When transitive and direct counts are equal (including zero), the report collapses to "Depended on by N module(s)" with the direct-dependent sample. The sample list remains direct importers. Sort blast-radius findings by characterization tier, then transitive reach descending, then direct count, then path. See LLD 0002 for the finding contract and limitations wording.
+
 It deliberately does not produce a single risk score or a merge recommendation, because Peter explicitly said lead with evidence, not auto-merge. The report explains. The reader judges. That restraint is part of what is being tested.
 
 ## What the CLI does

@@ -41,7 +41,7 @@ After reading raw output from the PRs above, these report-format adjustments wer
 
 4. **Change reference** — Report header includes the PR number or commit range analyzed.
 
-5. **Section context lines** — Brief one-line descriptions under Familiarity and Blast Radius headers explain what each section measures (per changed file for familiarity; static import and require() dependents for blast radius).
+5. **Section context lines** — Brief one-line descriptions under Familiarity and Blast Radius headers explain what each section measures (per changed file for familiarity; static import and require() reach for blast radius, with transitive reach as the characterization signal).
 
 6. **Priority ordering** — Unfamiliar files (`none`) appear before familiar ones; broad blast-radius findings appear before isolated ones.
 
@@ -102,7 +102,7 @@ Each changed file gets its own Familiarity line with file-scoped commit counts, 
 | Findings match experienced reader intuition | **Yes** for familiarity on real PRs — external contributors show `none`, active maintainers show `high`/`moderate` with plausible counts |
 | Explanation adds signal beyond the diff | **Yes** — churn totals and recency per file quantify risk the diff alone does not show |
 | Numbers, not just labels | **Yes** — every characterization is backed by commit counts, recency, and share |
-| Named dependents where applicable | **Yes** — type-fest #1461 correctly names `index.d.ts` as sole dependent; static-literal `require()` dependents are included in blast-radius counts |
+| Named dependents where applicable | **Yes** — type-fest #1461 correctly names `index.d.ts` as sole dependent; static-literal `require()` dependents are included; transitive reach drives characterization with direct importers shown as evidence when counts diverge |
 | Honest limitations | **Yes** — limitations section present; non-JS/TS source files explicitly excluded |
 | No verdict / score | **Yes** — report explains; reader judges |
 
@@ -122,6 +122,6 @@ Each changed file gets its own Familiarity line with file-scoped commit counts, 
 
 ## Conclusion
 
-The evidence report format passes the senior-engineer acceptance test on real TypeScript PRs (JavaScript/TypeScript blast-radius scope including static-literal `require()`; validation repos were TS-heavy). Familiarity findings are per changed file and are the strongest signal today. Blast-radius findings are credible on simpler repo layouts (type-fest, local fixtures) and honestly bounded where monorepo resolution is incomplete.
+The evidence report format passes the senior-engineer acceptance test on real TypeScript PRs (JavaScript/TypeScript blast-radius scope including static-literal `require()` and transitive reach via static import chains; validation repos were TS-heavy). Familiarity findings are per changed file and are the strongest signal today. Blast-radius findings are credible on simpler repo layouts (type-fest, local fixtures) and honestly bounded where monorepo resolution is incomplete.
 
 **Go/no-go:** Proceed — the explanation is worth showing to Peter for final human sign-off, with monorepo blast-radius caveats noted.

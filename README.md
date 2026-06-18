@@ -7,7 +7,7 @@ This is a **test rig**, not the product. The GitHub Action remains the product. 
 **Computes two evidence signals:**
 
 1. **Author-module familiarity** — git history over 6 months (language-agnostic)
-2. **Reverse-dependency blast radius** — JavaScript/TypeScript static ESM import and static-literal CommonJS `require()` graph (direct dependents only)
+2. **Reverse-dependency blast radius** — JavaScript/TypeScript static ESM import and static-literal CommonJS `require()` graph; characterizes from transitive reach with direct dependent count as evidence
 
 No risk score. No merge recommendation. Evidence only.
 
@@ -73,7 +73,7 @@ Documented in report output and VALIDATION.md. Notable gaps deferred to product 
 
 - Monorepo / cross-package import resolution (blast radius undercounts)
 - Path alias resolution (root `tsconfig.json` / `jsconfig.json` only; bundler and nested package configs not applied)
-- Transitive dependencies, dynamic `require()` and non-literal dynamic `import()`, platform-specific module resolution, non-JS/TS source files
+- Dynamic `require()` and non-literal dynamic `import()`, platform-specific module resolution, runtime wiring without import edges, non-JS/TS source files
 - Git robustness (renames, squashes, bots, co-authors)
 - Three additional evidence items not yet implemented
 
