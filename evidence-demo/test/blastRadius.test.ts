@@ -767,3 +767,126 @@ describe("analyzeBlastRadius JS/TS to stylesheet integration", () => {
     assert.deepEqual(findings[0].directDependents, ["src/Button.tsx"]);
   });
 });
+
+describe("analyzeBlastRadius stylesheet transitive reach integration", () => {
+  function writeStylesheetChainRepo(
+    repoPath: string,
+    componentCount: number,
+    options: { includeAppImporter?: boolean } = {}
+  ): void {
+    writeRepoFile(repoPath, "styles/_tokens.scss", "$spacing: 8px;\n");
+    writeRepoFile(
+      repoPath,
+      "styles/theme.scss",
+      "@use 'tokens';\n\n.theme { padding: tokens.$spacing; }\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "styles/main.scss",
+      "@forward './theme';\n\n.main { display: block; }\n"
+    );
+
+    for (let index = 0; index < componentCount; index += 1) {
+      writeRepoFile(
+        repoPath,
+        `src/components/Comp${index}.scss`,
+        "@use '../../styles/main';\n\n.comp { margin: 0; }\n"
+      );
+    }
+
+    if (options.includeAppImporter) {
+      writeRepoFile(
+        repoPath,
+        "src/App.tsx",
+        "import '../styles/main.scss';\nexport const App = () => null;\n"
+      );
+    }
+  }
+
+  it("counts transitive reach across a deep SCSS chain with broad characterization", () => {
+    const componentCount = 9;
+    const repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-blast-radius-scss-transitive-")
+    );
+    try {
+      writeStylesheetChainRepo(repoPath, componentCount);
+      const graph = createImportGraph(repoPath);
+
+      const findings = analyzeBlastRadius({
+        changedFiles: ["styles/_tokens.scss"],
+        importGraph: graph,
+      });
+
+      assert.equal(findings.length, 1);
+      const finding = findings[0];
+      assert.equal(finding.changedFile, "styles/_tokens.scss");
+      assert.equal(finding.directDependentCount, 1);
+      assert.deepEqual(finding.directDependents, ["styles/theme.scss"]);
+      assert.equal(finding.transitiveReachCount, componentCount + 2);
+      assert.ok(finding.transitiveReachCount >= 11);
+      assert.equal(finding.characterization, "broad");
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
+
+  it("terminates circular @use through a barrel without double-counting", () => {
+    const repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-blast-radius-scss-cycle-")
+    );
+    try {
+      writeRepoFile(repoPath, "styles/_shared.scss", "$color: blue;\n");
+      writeRepoFile(
+        repoPath,
+        "styles/_barrel.scss",
+        "@forward './shared';\n@use './barrel-consumer';\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "styles/_barrel-consumer.scss",
+        "@use './barrel';\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "src/app.scss",
+        "@use '../styles/barrel-consumer';\n\n.app { color: shared.$color; }\n"
+      );
+
+      const graph = createImportGraph(repoPath);
+      const result = countTransitiveReachForFile("styles/_shared.scss", graph);
+
+      assert.equal(result.transitiveReachCount, 3);
+      assert.deepEqual(graph.get("styles/_shared.scss"), ["styles/_barrel.scss"]);
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
+
+  it("counts JS importers in transitive reach across stylesheet chains", () => {
+    const repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-blast-radius-scss-cross-lang-")
+    );
+    try {
+      writeStylesheetChainRepo(repoPath, 0, { includeAppImporter: true });
+      const graph = createImportGraph(repoPath);
+
+      const findings = analyzeBlastRadius({
+        changedFiles: ["styles/_tokens.scss"],
+        importGraph: graph,
+      });
+
+      assert.equal(findings.length, 1);
+      const finding = findings[0];
+      assert.equal(finding.directDependentCount, 1);
+      assert.deepEqual(finding.directDependents, ["styles/theme.scss"]);
+      assert.equal(finding.transitiveReachCount, 3);
+      assert.deepEqual(
+        countTransitiveReachForFile("styles/_tokens.scss", graph).transitiveReachCount,
+        3
+      );
+      assert.ok(graph.get("styles/main.scss")?.includes("src/App.tsx"));
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
+});
