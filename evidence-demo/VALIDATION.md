@@ -27,11 +27,11 @@ npm run build
 
 After reading raw output from the PRs above, these report-format adjustments were made:
 
-1. **Line-first familiarity phrasing** — When the file has blameable lines, detail leads with current line ownership and windowed line churn, then commit counts and recency in parentheses. Example: "Author owns 62% of current lines and 41% of line churn in 6 months (3 commits, last touch 10 days ago; 7 commits by others in window)." When blameable lines are zero (binary, empty, or non-text), the report falls back to commit-only phrasing with "commit activity" for commit-share, not line ownership.
+1. **Line-first familiarity phrasing** — When the file has blameable lines, detail leads with pre-PR line ownership and windowed line churn, then commit counts and recency in parentheses. Example: "Author owned 62% of lines and 41% of line churn in 6 months before this PR (3 commits, last touch 10 days ago; 7 commits by others in window)." When blameable lines are zero (binary, empty, or non-text), the report falls back to commit-only phrasing with "commit activity" for commit-share, not line ownership.
 
-2. **No-author-history cases** — When the author has no commits in the window: with blameable lines, lead with line ownership (often 0%) and state "(no author commits in window; N commits by others in window)"; without blameable lines, use "No author commits to this file in 6 months; N commits by others in this window."
+2. **No-author-history cases** — When the author has no pre-PR commits in the window: with blameable lines, lead with line ownership (often 0%) and state "(no author commits in window; N commits by others in window)"; without blameable lines, use "No author commits to this file in 6 months before this PR; N commits by others in this window." First-time touch (author's only history is the PR itself) characterizes as `none`, not `moderate`.
 
-3. **Sole contributor with blameable lines** — Line ownership lead plus commit facts, e.g. "Author owns 100% of current lines in 6 months (2 commits, last touch today)."
+3. **Sole contributor with blameable lines** — Line ownership lead plus commit facts, e.g. "Author owned 100% of lines and 100% of line churn in 6 months before this PR (2 commits, last touch today)."
 
 4. **Shared file with blameable lines** — Line ownership lead, author commit count and recency, then others' commit activity in the same parenthetical.
 
@@ -54,16 +54,16 @@ After reading raw output from the PRs above, these report-format adjustments wer
 ```
 Familiarity
 -----------
-  How much the author has worked on each changed file over the last 6 months.
+  How much the author worked on each changed file in the 6 months before this PR.
   packages/zod/src/v4/classic/schemas.ts — none
-    Author owns 0% of current lines and 0% of line churn in 6 months (no author commits in window; 42 commits by others in window).
+    Author owned 0% of lines and 0% of line churn in 6 months before this PR (no author commits in window; 42 commits by others in window).
   packages/zod/src/v4/classic/tests/schemas.test.ts — none
-    Author owns 0% of current lines and 0% of line churn in 6 months (no author commits in window; 38 commits by others in window).
+    Author owned 0% of lines and 0% of line churn in 6 months before this PR (no author commits in window; 38 commits by others in window).
   packages/zod/src/v4/core/schemas.ts — none
-    Author owns 0% of current lines and 0% of line churn in 6 months (no author commits in window; 45 commits by others in window).
+    Author owned 0% of lines and 0% of line churn in 6 months before this PR (no author commits in window; 45 commits by others in window).
 ```
 
-**Senior engineer read:** Trustworthy. The author has no recent history on the changed v4 files despite substantial team activity there — a legitimate unfamiliarity signal. Numbers are verifiable via `git log`.
+**Senior engineer read:** Trustworthy. The author has no pre-PR history on the changed v4 files despite substantial team activity there — a legitimate unfamiliarity signal (`none`, not inflated by in-PR commits). Numbers are verifiable via `git log` up to merge-base.
 
 ### Dependency-only PR (citty #243)
 
@@ -75,7 +75,7 @@ Changed files (2):
 Familiarity
 -----------
   package.json — none
-    No author commits to this file in 6 months; 12 commits by others in this window.
+    No author commits to this file in 6 months before this PR; 12 commits by others in this window.
 
 Not Analyzed for Blast Radius
 -----------------------------
@@ -90,9 +90,9 @@ Not Analyzed for Blast Radius
 
 ```
   evidence-demo/src/report/renderReport.ts — high
-    Author owns 100% of current lines and 100% of line churn in 6 months (2 commits, last touch today).
+    Author owned 100% of lines and 100% of line churn in 6 months before this PR (2 commits, last touch today).
   evidence-demo/test/renderReport.test.ts — high
-    Author owns 100% of current lines and 100% of line churn in 6 months (13 commits, last touch today).
+    Author owned 100% of lines and 100% of line churn in 6 months before this PR (13 commits, last touch today).
 ```
 
 Each changed file gets its own Familiarity line with file-scoped line ownership and commit counts, even when multiple files share a parent directory.
@@ -101,7 +101,7 @@ Each changed file gets its own Familiarity line with file-scoped line ownership 
 
 | Criterion | Assessment |
 |-----------|------------|
-| Findings match experienced reader intuition | **Yes** for familiarity on real PRs — external contributors show `none`, active maintainers show `high`/`moderate` with plausible counts |
+| Findings match experienced reader intuition | **Yes** for familiarity on real PRs — external contributors and first-time touch show `none` (pre-PR measurement excludes in-PR commits), active maintainers show `high`/`moderate` with plausible pre-PR counts |
 | Explanation adds signal beyond the diff | **Yes** — churn totals and recency per file quantify risk the diff alone does not show |
 | Numbers, not just labels | **Yes** — every characterization is backed by line ownership and windowed line churn when blameable, plus commit counts, recency, and commit-share where applicable |
 | Named dependents where applicable | **Yes** — type-fest #1461 correctly names `index.d.ts` as sole dependent; static-literal `require()` dependents are included; transitive reach drives characterization with direct importers shown as evidence when counts diverge |
@@ -124,6 +124,6 @@ Each changed file gets its own Familiarity line with file-scoped line ownership 
 
 ## Conclusion
 
-The evidence report format passes the senior-engineer acceptance test on real TypeScript PRs (JavaScript/TypeScript blast-radius scope including static-literal `require()` and transitive reach via static import chains; validation repos were TS-heavy). Familiarity findings are per changed file, combine git blame (current line ownership and windowed line churn) with commit history, and are the strongest signal today. Blast-radius findings are credible on simpler repo layouts (type-fest, local fixtures) and honestly bounded where monorepo resolution is incomplete.
+The evidence report format passes the senior-engineer acceptance test on real TypeScript PRs (JavaScript/TypeScript blast-radius scope including static-literal `require()` and transitive reach via static import chains; validation repos were TS-heavy). Familiarity findings are per changed file, measured at merge-base before this PR — git blame for line ownership and windowed line churn, git log up to merge-base for commit counts and recency — and are the strongest signal today. Blast-radius findings are credible on simpler repo layouts (type-fest, local fixtures) and honestly bounded where monorepo resolution is incomplete.
 
 **Go/no-go:** Proceed — the explanation is worth showing to Peter for final human sign-off, with monorepo blast-radius caveats noted.

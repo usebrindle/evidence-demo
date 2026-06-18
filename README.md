@@ -6,7 +6,7 @@ This is a **test rig**, not the product. The GitHub Action remains the product. 
 
 **Computes two evidence signals:**
 
-1. **Author-module familiarity** — git blame at PR head (current line ownership and windowed line churn) plus git log commit counts and recency over 6 months, per changed file (language-agnostic)
+1. **Author-module familiarity** — git blame at merge-base (line ownership and windowed line churn before this PR) plus git log commit counts and recency up to merge-base over 6 months, per changed file (language-agnostic)
 2. **Reverse-dependency blast radius** — JavaScript/TypeScript static ESM import and static-literal CommonJS `require()` graph; characterizes from transitive reach with direct dependent count as evidence
 
 No risk score. No merge recommendation. Evidence only.
