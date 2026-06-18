@@ -27,23 +27,25 @@ npm run build
 
 After reading raw output from the PRs above, these report-format adjustments were made:
 
-1. **Clearer familiarity phrasing** — Distinguish three cases explicitly, per changed file:
-   - No author history: "No author commits to this file in 6 months; N commits by others in this window."
-   - Sole contributor: "Author has N commits to this file (sole contributor in window), last touch …"
-   - Shared file: "Author has N commits to this file …; M commits by others in this window (T total)."
-   - Removed redundant parenthetical when it duplicated the others count.
+1. **Line-first familiarity phrasing** — When the file has blameable lines, detail leads with current line ownership and windowed line churn, then commit counts and recency in parentheses. Example: "Author owns 62% of current lines and 41% of line churn in 6 months (3 commits, last touch 10 days ago; 7 commits by others in window)." When blameable lines are zero (binary, empty, or non-text), the report falls back to commit-only phrasing with "commit activity" for commit-share, not line ownership.
 
-2. **Per-file familiarity labels** — Each Familiarity line shows the full changed file path (for example `packages/zod/src/v4/classic/schemas.ts`), not a parent directory. Multiple files in the same directory get separate lines with distinct counts where git history differs.
+2. **No-author-history cases** — When the author has no commits in the window: with blameable lines, lead with line ownership (often 0%) and state "(no author commits in window; N commits by others in window)"; without blameable lines, use "No author commits to this file in 6 months; N commits by others in this window."
 
-3. **Repository root label** — File path `.` (from root-level files like `package.json`) now renders as `(repository root)` instead of a bare dot.
+3. **Sole contributor with blameable lines** — Line ownership lead plus commit facts, e.g. "Author owns 100% of current lines in 6 months (2 commits, last touch today)."
 
-3. **Changed-file listing** — Header now lists changed paths (truncated at 12) so the reader sees the diff scope without re-running git.
+4. **Shared file with blameable lines** — Line ownership lead, author commit count and recency, then others' commit activity in the same parenthetical.
 
-4. **Change reference** — Report header includes the PR number or commit range analyzed.
+5. **Per-file familiarity labels** — Each Familiarity line shows the full changed file path (for example `packages/zod/src/v4/classic/schemas.ts`), not a parent directory. Multiple files in the same directory get separate lines with distinct counts where git history differs.
 
-5. **Section context lines** — Brief one-line descriptions under Familiarity and Blast Radius headers explain what each section measures (per changed file for familiarity; static import and require() reach for blast radius, with transitive reach as the characterization signal).
+6. **Repository root label** — File path `.` (from root-level files like `package.json`) now renders as `(repository root)` instead of a bare dot.
 
-6. **Priority ordering** — Unfamiliar files (`none`) appear before familiar ones; broad blast-radius findings appear before isolated ones.
+7. **Changed-file listing** — Header now lists changed paths (truncated at 12) so the reader sees the diff scope without re-running git.
+
+8. **Change reference** — Report header includes the PR number or commit range analyzed.
+
+9. **Section context lines** — Brief one-line descriptions under Familiarity and Blast Radius headers explain what each section measures (per changed file for familiarity; static import and require() reach for blast radius, with transitive reach as the characterization signal).
+
+10. **Priority ordering** — Unfamiliar files (`none`) appear before familiar ones; broad blast-radius findings appear before isolated ones.
 
 ## Example outputs (post-tuning)
 
@@ -54,11 +56,11 @@ Familiarity
 -----------
   How much the author has worked on each changed file over the last 6 months.
   packages/zod/src/v4/classic/schemas.ts — none
-    No author commits to this file in 6 months; 42 commits by others in this window.
+    Author owns 0% of current lines and 0% of line churn in 6 months (no author commits in window; 42 commits by others in window).
   packages/zod/src/v4/classic/tests/schemas.test.ts — none
-    No author commits to this file in 6 months; 38 commits by others in this window.
+    Author owns 0% of current lines and 0% of line churn in 6 months (no author commits in window; 38 commits by others in window).
   packages/zod/src/v4/core/schemas.ts — none
-    No author commits to this file in 6 months; 45 commits by others in this window.
+    Author owns 0% of current lines and 0% of line churn in 6 months (no author commits in window; 45 commits by others in window).
 ```
 
 **Senior engineer read:** Trustworthy. The author has no recent history on the changed v4 files despite substantial team activity there — a legitimate unfamiliarity signal. Numbers are verifiable via `git log`.
@@ -88,12 +90,12 @@ Not Analyzed for Blast Radius
 
 ```
   evidence-demo/src/report/renderReport.ts — high
-    Author has 2 commits to this file in 6 months (sole contributor in window), last touch today.
+    Author owns 100% of current lines and 100% of line churn in 6 months (2 commits, last touch today).
   evidence-demo/test/renderReport.test.ts — high
-    Author has 13 commits to this file in 6 months (sole contributor in window), last touch today.
+    Author owns 100% of current lines and 100% of line churn in 6 months (13 commits, last touch today).
 ```
 
-Each changed file gets its own Familiarity line with file-scoped commit counts, even when multiple files share a parent directory.
+Each changed file gets its own Familiarity line with file-scoped line ownership and commit counts, even when multiple files share a parent directory.
 
 ## Acceptance criterion assessment
 
@@ -101,7 +103,7 @@ Each changed file gets its own Familiarity line with file-scoped commit counts, 
 |-----------|------------|
 | Findings match experienced reader intuition | **Yes** for familiarity on real PRs — external contributors show `none`, active maintainers show `high`/`moderate` with plausible counts |
 | Explanation adds signal beyond the diff | **Yes** — churn totals and recency per file quantify risk the diff alone does not show |
-| Numbers, not just labels | **Yes** — every characterization is backed by commit counts, recency, and share |
+| Numbers, not just labels | **Yes** — every characterization is backed by line ownership and windowed line churn when blameable, plus commit counts, recency, and commit-share where applicable |
 | Named dependents where applicable | **Yes** — type-fest #1461 correctly names `index.d.ts` as sole dependent; static-literal `require()` dependents are included; transitive reach drives characterization with direct importers shown as evidence when counts diverge |
 | Honest limitations | **Yes** — limitations section present; non-JS/TS source files explicitly excluded |
 | No verdict / score | **Yes** — report explains; reader judges |
@@ -122,6 +124,6 @@ Each changed file gets its own Familiarity line with file-scoped commit counts, 
 
 ## Conclusion
 
-The evidence report format passes the senior-engineer acceptance test on real TypeScript PRs (JavaScript/TypeScript blast-radius scope including static-literal `require()` and transitive reach via static import chains; validation repos were TS-heavy). Familiarity findings are per changed file and are the strongest signal today. Blast-radius findings are credible on simpler repo layouts (type-fest, local fixtures) and honestly bounded where monorepo resolution is incomplete.
+The evidence report format passes the senior-engineer acceptance test on real TypeScript PRs (JavaScript/TypeScript blast-radius scope including static-literal `require()` and transitive reach via static import chains; validation repos were TS-heavy). Familiarity findings are per changed file, combine git blame (current line ownership and windowed line churn) with commit history, and are the strongest signal today. Blast-radius findings are credible on simpler repo layouts (type-fest, local fixtures) and honestly bounded where monorepo resolution is incomplete.
 
 **Go/no-go:** Proceed — the explanation is worth showing to Peter for final human sign-off, with monorepo blast-radius caveats noted.

@@ -6,17 +6,33 @@ Assemble the findings from the familiarity analyzer (LLD 0001) and the blast-rad
 
 ## The report is the product
 
-The acceptance test is whether a senior engineer reads the report and says "yes, that is actually why this PR is or is not risky." So the report is designed for that reader. It leads with the evidence and the supporting numbers, not a verdict. It shows, per changed file, the author's familiarity with the numbers behind it, and per changed JavaScript or TypeScript source file, the blast radius with the dependents named. It is honest about what it does not compute, because stated limitations are what make the computed parts trustworthy to a skeptic.
+The acceptance test is whether a senior engineer reads the report and says "yes, that is actually why this PR is or is not risky." So the report is designed for that reader. It leads with the evidence and the supporting numbers, not a verdict. It shows, per changed file, the author's familiarity with the numbers behind it ... line ownership and windowed line churn first, then commit counts and recency ... and per changed JavaScript or TypeScript source file, the blast radius with the dependents named. It is honest about what it does not compute, because stated limitations are what make the computed parts trustworthy to a skeptic.
+
+Familiarity lines lead with line-level facts, then commit facts. Example detail copy:
+
+> Author owns 62% of current lines and 41% of line churn in 6 months (3 commits, last touch 10 days ago; 7 commits by others in window).
+
+When the author has no history in the window, the line states that plainly and still surfaces others' activity where available. Each Familiarity line labels the full changed file path, not a parent directory. Sort familiarity findings by characterization tier, then path. See LLD 0001 for the finding contract and characterization rule.
 
 Blast-radius lines lead with transitive reach as the headline number and show direct dependent count when it adds information (for example, when a file has one direct importer but many transitive dependents). When transitive and direct counts are equal (including zero), the report collapses to "Depended on by N module(s)" with the direct-dependent sample. The sample list remains direct importers. Sort blast-radius findings by characterization tier, then transitive reach descending, then direct count, then path. See LLD 0002 for the finding contract and limitations wording.
 
 It deliberately does not produce a single risk score or a merge recommendation, because Peter explicitly said lead with evidence, not auto-merge. The report explains. The reader judges. That restraint is part of what is being tested.
 
+## Limitations (report copy)
+
+The report must state what familiarity does and does not compute. At minimum:
+
+- Familiarity uses `git blame` at PR head for current content ownership and `git blame --since` (or equivalent) for windowed line churn; commit counts and recency come from `git log`. Commit-share (`shareOfFileCommitChurn`) is reported separately and is not a substitute for line ownership.
+- Git history and blame do not account for renames, squashes, co-authored commits, or bot attribution. Line ownership on generated, minified, or binary files may be misleading or unavailable.
+- The familiarity window is fixed at six months. Recency gates the characterization label; high current-line ownership without a recent touch does not yield `high`.
+
+Blast-radius limitations remain as specified in LLD 0002. See `buildEvidenceReport.ts` for the assembled limitations list.
+
 ## What the CLI does
 
 - Takes a path to a local cloned repository and a pull request reference, or a base...head commit range, identifying the change to analyze.
 - Determines the changed files and the author for that change from the local repo.
-- Supplies the impure inputs the analyzers need ... a git-history source for familiarity, and a parsed import graph for blast radius ... by reading the local clone.
+- Supplies the impure inputs the analyzers need ... a git-history source and a git-blame source for familiarity, and a parsed import graph for blast radius ... by reading the local clone.
 - Runs the two analyzers.
 - Formats their findings into the evidence report and prints it.
 
@@ -29,7 +45,8 @@ evidence-demo/
   src/
     cli.ts                  # arg parsing, orchestration, the throwaway wrapper
     inputs/
-      gitHistorySource.ts   # impure: reads git log from the local clone
+      gitHistorySource.ts   # impure: reads git log from the local clone (commit counts, recency)
+      gitBlameSource.ts     # impure: reads git blame from the local clone (current content ownership, windowed line churn)
       importGraphSource.ts   # impure: walks JS/TS sources and parses static imports and static-literal require() from the local clone
       changedFiles.ts        # impure: resolves the PR or range to changed files + author
     report/
