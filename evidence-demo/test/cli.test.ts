@@ -501,7 +501,7 @@ describe("runEvidenceDemo", () => {
     }
   });
 
-  it("shows none familiarity when the author's only history on a file is the PR itself", () => {
+  it("shows none for first-touch modified file with pre-PR no-author-history copy (not greenfield high)", () => {
     const firstTouchRepo = mkdtempSync(
       path.join(os.tmpdir(), "evidence-demo-first-touch-e2e-")
     );
@@ -557,9 +557,16 @@ describe("runEvidenceDemo", () => {
       assert.match(output, /Author: Alice Author <alice@example.com>/);
       assert.match(output, /Familiarity/);
       assert.match(output, /src\/existing\.ts — none/);
+      assert.doesNotMatch(output, /src\/existing\.ts — high/);
       assert.doesNotMatch(output, /src\/existing\.ts — moderate/);
-      assert.match(output, /before this PR/);
-      assert.match(output, /no author commits in window/);
+      assert.match(
+        output,
+        /src\/existing\.ts — none[\s\S]*before this PR[\s\S]*no author commits in window/
+      );
+      assert.doesNotMatch(
+        output,
+        /File added in this PR; no prior history on this path\. Author is the sole contributor in this change\./
+      );
     } finally {
       rmSync(firstTouchRepo, { recursive: true, force: true });
     }
