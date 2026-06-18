@@ -29,23 +29,25 @@ After reading raw output from the PRs above, these report-format adjustments wer
 
 1. **Line-first familiarity phrasing** — When the file has blameable lines, detail leads with pre-PR line ownership and windowed line churn, then commit counts and recency in parentheses. Example: "Author owned 62% of lines and 41% of line churn in 6 months before this PR (3 commits, last touch 10 days ago; 7 commits by others in window)." When blameable lines are zero (binary, empty, or non-text), the report falls back to commit-only phrasing with "commit activity" for commit-share, not line ownership.
 
-2. **No-author-history cases** — When the author has no pre-PR commits in the window: with blameable lines, lead with line ownership (often 0%) and state "(no author commits in window; N commits by others in window)"; without blameable lines, use "No author commits to this file in 6 months before this PR; N commits by others in this window." First-time touch (author's only history is the PR itself) characterizes as `none`, not `moderate`.
+2. **No-author-history cases (modified files)** — When the author has no pre-PR commits in the window on a **modified** file: with blameable lines, lead with line ownership (often 0%) and state "(no author commits in window; N commits by others in window)"; without blameable lines, use "No author commits to this file in 6 months before this PR; N commits by others in this window." First touch of an **existing** file characterizes as `none`, not `moderate` or `high`.
 
-3. **Sole contributor with blameable lines** — Line ownership lead plus commit facts, e.g. "Author owned 100% of lines and 100% of line churn in 6 months before this PR (2 commits, last touch today)."
+3. **Greenfield added files (Slice 8)** — Files **added in this PR** (`changeKind: added`) characterize as **`high`**, not `none`, even when pre-PR signals are zero. Detail copy: "File added in this PR; no prior history on this path. Author is the sole contributor in this change." Do not use the pre-PR numeric lead ("owned 0% of lines before this PR") for added files.
 
-4. **Shared file with blameable lines** — Line ownership lead, author commit count and recency, then others' commit activity in the same parenthetical.
+4. **Sole contributor with blameable lines** — Line ownership lead plus commit facts, e.g. "Author owned 100% of lines and 100% of line churn in 6 months before this PR (2 commits, last touch today)."
 
-5. **Per-file familiarity labels** — Each Familiarity line shows the full changed file path (for example `packages/zod/src/v4/classic/schemas.ts`), not a parent directory. Multiple files in the same directory get separate lines with distinct counts where git history differs.
+5. **Shared file with blameable lines** — Line ownership lead, author commit count and recency, then others' commit activity in the same parenthetical.
 
-6. **Repository root label** — File path `.` (from root-level files like `package.json`) now renders as `(repository root)` instead of a bare dot.
+6. **Per-file familiarity labels** — Each Familiarity line shows the full changed file path (for example `packages/zod/src/v4/classic/schemas.ts`), not a parent directory. Multiple files in the same directory get separate lines with distinct counts where git history differs.
 
-7. **Changed-file listing** — Header now lists changed paths (truncated at 12) so the reader sees the diff scope without re-running git.
+7. **Repository root label** — File path `.` (from root-level files like `package.json`) now renders as `(repository root)` instead of a bare dot.
 
-8. **Change reference** — Report header includes the PR number or commit range analyzed.
+8. **Changed-file listing** — Header now lists changed paths (truncated at 12) so the reader sees the diff scope without re-running git.
 
-9. **Section context lines** — Brief one-line descriptions under Familiarity and Blast Radius headers explain what each section measures (per changed file for familiarity; static import and require() reach for blast radius, with transitive reach as the characterization signal).
+9. **Change reference** — Report header includes the PR number or commit range analyzed.
 
-10. **Priority ordering** — Unfamiliar files (`none`) appear before familiar ones; broad blast-radius findings appear before isolated ones.
+10. **Section context lines** — Brief one-line descriptions under Familiarity and Blast Radius headers explain what each section measures (pre-PR history for modified files; added files labeled separately; static import and require() reach for blast radius, with transitive reach as the characterization signal).
+
+11. **Priority ordering** — Unfamiliar files (`none`) appear before familiar ones; broad blast-radius findings appear before isolated ones.
 
 ## Example outputs (post-tuning)
 
@@ -54,7 +56,7 @@ After reading raw output from the PRs above, these report-format adjustments wer
 ```
 Familiarity
 -----------
-  How much the author worked on each changed file in the 6 months before this PR.
+  How much the author had worked on each changed file before this PR (last 6 months); added files labeled separately.
   packages/zod/src/v4/classic/schemas.ts — none
     Author owned 0% of lines and 0% of line churn in 6 months before this PR (no author commits in window; 42 commits by others in window).
   packages/zod/src/v4/classic/tests/schemas.test.ts — none
@@ -97,11 +99,37 @@ Not Analyzed for Blast Radius
 
 Each changed file gets its own Familiarity line with file-scoped line ownership and commit counts, even when multiple files share a parent directory.
 
+### Greenfield added file vs first-touch modified (Slice 8 fixtures)
+
+Both cases can show zero pre-PR author commits and zero line shares, but change kind drives different labels and copy.
+
+**Added file (`high`, greenfield):**
+
+```
+Familiarity
+-----------
+  How much the author had worked on each changed file before this PR (last 6 months); added files labeled separately.
+  src/newModule.ts — high
+    File added in this PR; no prior history on this path. Author is the sole contributor in this change.
+```
+
+**First touch of existing file (`none`, pre-PR copy):**
+
+```
+Familiarity
+-----------
+  How much the author had worked on each changed file before this PR (last 6 months); added files labeled separately.
+  src/existing.ts — none
+    Author owned 0% of lines and 0% of line churn in 6 months before this PR (no author commits in window; 3 commits by others in window).
+```
+
+**Senior engineer read:** Same zero pre-PR stats would mislead without change kind. A new path is greenfield **`high`** (author is the sole contributor in this change). A legacy file the author has never touched stays **`none`** with pre-PR numeric framing — not upgraded to `high` and not described as greenfield.
+
 ## Acceptance criterion assessment
 
 | Criterion | Assessment |
 |-----------|------------|
-| Findings match experienced reader intuition | **Yes** for familiarity on real PRs — external contributors and first-time touch show `none` (pre-PR measurement excludes in-PR commits), active maintainers show `high`/`moderate` with plausible pre-PR counts |
+| Findings match experienced reader intuition | **Yes** for familiarity on real PRs — external contributors and first-touch **modified** files show `none` (pre-PR measurement excludes in-PR commits); files **added in this PR** show **`high`** with greenfield copy; active maintainers show `high`/`moderate` with plausible pre-PR counts |
 | Explanation adds signal beyond the diff | **Yes** — churn totals and recency per file quantify risk the diff alone does not show |
 | Numbers, not just labels | **Yes** — every characterization is backed by line ownership and windowed line churn when blameable, plus commit counts, recency, and commit-share where applicable |
 | Named dependents where applicable | **Yes** — type-fest #1461 correctly names `index.d.ts` as sole dependent; static-literal `require()` dependents are included; transitive reach drives characterization with direct importers shown as evidence when counts diverge |
@@ -124,6 +152,6 @@ Each changed file gets its own Familiarity line with file-scoped line ownership 
 
 ## Conclusion
 
-The evidence report format passes the senior-engineer acceptance test on real TypeScript PRs (JavaScript/TypeScript blast-radius scope including static-literal `require()` and transitive reach via static import chains; validation repos were TS-heavy). Familiarity findings are per changed file, measured at merge-base before this PR — git blame for line ownership and windowed line churn, git log up to merge-base for commit counts and recency — and are the strongest signal today. Blast-radius findings are credible on simpler repo layouts (type-fest, local fixtures) and honestly bounded where monorepo resolution is incomplete.
+The evidence report format passes the senior-engineer acceptance test on real TypeScript PRs (JavaScript/TypeScript blast-radius scope including static-literal `require()` and transitive reach via static import chains; validation repos were TS-heavy). Familiarity findings are per changed file, measured at merge-base before this PR — git blame for line ownership and windowed line churn, git log up to merge-base for commit counts and recency — with **added files labeled `high` (greenfield) by change kind** and **first-touch modified files remaining `none`**. Blast-radius findings are credible on simpler repo layouts (type-fest, local fixtures) and honestly bounded where monorepo resolution is incomplete.
 
 **Go/no-go:** Proceed — the explanation is worth showing to Peter for final human sign-off, with monorepo blast-radius caveats noted.

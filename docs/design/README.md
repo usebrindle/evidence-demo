@@ -20,7 +20,7 @@ If refuted, the robustness grind is not worth starting. If validated, the analyz
 
 ## Scope
 
-In scope ... two evidence items computed roughly, on a single repo at a time, with blast radius computed from JavaScript and TypeScript static ESM imports and static-literal CommonJS `require()` (`.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, `.cts`). Blast radius characterizes from transitive reach (LLD 0002 Slice 5), with direct dependent count as supporting evidence. Familiarity is per changed file from git history and line-level blame (current content ownership plus windowed line churn), with commit counts and recency as supporting signals. A readable report. Local only.
+In scope ... two evidence items computed roughly, on a single repo at a time, with blast radius computed from JavaScript and TypeScript static ESM imports and static-literal CommonJS `require()` (`.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, `.cts`). Blast radius characterizes from transitive reach (LLD 0002 Slice 5), with direct dependent count as supporting evidence. Familiarity is per changed file: pre-PR git history and line-level blame at merge-base for **modified** files; **added** files characterize as **`high` (greenfield)** by change kind with explicit report copy. A readable report. Local only.
 
 Explicitly out of scope, deferred to the product if validated ... the robustness Peter listed (renamed and moved files, squashed commits, generated code, bot commits, co-authored commits, reviewers who rarely commit, new team members, monorepo boundaries, dynamic imports), multi-language blast radius (Python, Go, and other non-JS/TS languages), the other three evidence items (public-interface touches, resemblance to past clean merges, resemblance to past reverts and incidents), weighted reach scoring (PageRank, entry-point detection), any scoring, any storage, any hosting.
 
@@ -30,7 +30,7 @@ The two analyzers are written as pure, core-shaped functions ... they take expli
 
 ## The LLDs
 
-1. [0001-familiarity-analyzer.md](0001-familiarity-analyzer.md) ... author familiarity per changed file from git history and line-level blame (current content ownership and windowed line churn), with commit counts and recency as supporting signals. Language-agnostic. Core-destined.
+1. [0001-familiarity-analyzer.md](0001-familiarity-analyzer.md) ... author familiarity per changed file: pre-PR git history and line-level blame for **modified** files; **added** files as greenfield **`high`** by change kind. Language-agnostic. Core-destined.
 2. [0002-blast-radius-analyzer.md](0002-blast-radius-analyzer.md) ... reverse-dependency breadth from JavaScript and TypeScript static import and static-literal `require()` analysis; transitive reach as the characterization signal, direct count as evidence. Core-destined.
 3. [0003-evidence-report-and-cli.md](0003-evidence-report-and-cli.md) ... assembles the analyzer findings into the human-readable report and wraps them in the throwaway CLI.
 

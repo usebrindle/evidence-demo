@@ -8,11 +8,23 @@ Assemble the findings from the familiarity analyzer (LLD 0001) and the blast-rad
 
 The acceptance test is whether a senior engineer reads the report and says "yes, that is actually why this PR is or is not risky." So the report is designed for that reader. It leads with the evidence and the supporting numbers, not a verdict. It shows, per changed file, the author's familiarity with the numbers behind it ... line ownership and windowed line churn first, then commit counts and recency ... and per changed JavaScript or TypeScript source file, the blast radius with the dependents named. It is honest about what it does not compute, because stated limitations are what make the computed parts trustworthy to a skeptic.
 
-Familiarity lines lead with line-level facts, then commit facts. Example detail copy:
+Familiarity lines lead with line-level facts, then commit facts for **modified** files. Pre-PR numeric copy ("owned X% of lines before this PR") applies to **modified** files only. **Added** files use greenfield copy (see below). All pre-PR signals are measured at merge-base, excluding commits and line changes introduced by the PR under review.
 
-> Author owns 62% of current lines and 41% of line churn in 6 months (3 commits, last touch 10 days ago; 7 commits by others in window).
+Example detail copy (modified file, author with prior history):
 
-When the author has no history in the window, the line states that plainly and still surfaces others' activity where available. Each Familiarity line labels the full changed file path, not a parent directory. Sort familiarity findings by characterization tier, then path. See LLD 0001 for the finding contract and characterization rule.
+> Author owned 62% of lines and 41% of line churn in 6 months before this PR (3 commits, last touch 10 days ago; 7 commits by others in window).
+
+First touch of **existing** file example (`none`):
+
+> Author owned 0% of lines and 0% of line churn in 6 months before this PR (no author commits in window; 11 commits by others in window).
+
+**Greenfield (added file) example (`high`):**
+
+> File added in this PR; no prior history on this path. Author is the sole contributor in this change.
+
+When the author has no pre-PR history on a **modified** file, the line states that plainly and still surfaces others' activity where available. Each Familiarity line labels the full changed file path, not a parent directory. Sort familiarity findings by characterization tier, then path. See LLD 0001 for the finding contract and characterization rule.
+
+A senior engineer should **not** see `moderate` on a **modified** file where the author's only history is the PR itself. A senior engineer **should** see **`high`** on files **added** in this PR (greenfield), and **`none`** on first-touch **modified** files — not the reverse.
 
 Blast-radius lines lead with transitive reach as the headline number and show direct dependent count when it adds information (for example, when a file has one direct importer but many transitive dependents). When transitive and direct counts are equal (including zero), the report collapses to "Depended on by N module(s)" with the direct-dependent sample. The sample list remains direct importers. Sort blast-radius findings by characterization tier, then transitive reach descending, then direct count, then path. See LLD 0002 for the finding contract and limitations wording.
 
@@ -22,7 +34,8 @@ It deliberately does not produce a single risk score or a merge recommendation, 
 
 The report must state what familiarity does and does not compute. At minimum:
 
-- Familiarity uses `git blame` at PR head for current content ownership and `git blame --since` (or equivalent) for windowed line churn; commit counts and recency come from `git log`. Commit-share (`shareOfFileCommitChurn`) is reported separately and is not a substitute for line ownership.
+- Familiarity uses `git blame` at **merge-base** for current content ownership and `git blame --since` at merge-base for windowed line churn on **modified** files; commit counts and recency come from `git log` **up to merge-base only**. Commits and line changes introduced by the PR under review are excluded. Commit-share (`shareOfFileCommitChurn`) is reported separately and is not a substitute for line ownership.
+- Files **added in this PR** are characterized as **`high` (greenfield)** by change kind, not pre-PR blame or log. Pre-PR signals are zero by definition. Renames may misclassify add/delete pairs until rename tracking is implemented.
 - Git history and blame do not account for renames, squashes, co-authored commits, or bot attribution. Line ownership on generated, minified, or binary files may be misleading or unavailable.
 - The familiarity window is fixed at six months. Recency gates the characterization label; high current-line ownership without a recent touch does not yield `high`.
 
@@ -31,8 +44,8 @@ Blast-radius limitations remain as specified in LLD 0002. See `buildEvidenceRepo
 ## What the CLI does
 
 - Takes a path to a local cloned repository and a pull request reference, or a base...head commit range, identifying the change to analyze.
-- Determines the changed files and the author for that change from the local repo.
-- Supplies the impure inputs the analyzers need ... a git-history source and a git-blame source for familiarity, and a parsed import graph for blast radius ... by reading the local clone.
+- Determines the changed files (with change kind per path), author, `baseRevision` (merge-base), and `headRevision` for that change from the local repo.
+- Supplies the impure inputs the analyzers need ... a git-history source and a git-blame source for familiarity (queried at `baseRevision`), and a parsed import graph for blast radius ... by reading the local clone.
 - Runs the two analyzers.
 - Formats their findings into the evidence report and prints it.
 
@@ -48,13 +61,15 @@ evidence-demo/
       gitHistorySource.ts   # impure: reads git log from the local clone (commit counts, recency)
       gitBlameSource.ts     # impure: reads git blame from the local clone (current content ownership, windowed line churn)
       importGraphSource.ts   # impure: walks JS/TS sources and parses static imports and static-literal require() from the local clone
-      changedFiles.ts        # impure: resolves the PR or range to changed files + author
+      changedFiles.ts        # impure: resolves the PR or range to changed files (path + change kind), author, baseRevision, and headRevision
     report/
       buildEvidenceReport.ts # pure: findings -> structured report
       renderReport.ts         # pure: structured report -> readable text
 ```
 
 The analyzers themselves (LLD 0001, 0002) live as pure modules the CLI imports. The `inputs/` modules are the impure edge that the CLI owns and that would be replaced when the analyzers move into the core. The `report/` modules are pure and plausibly core-destined.
+
+`changedFiles.ts` resolves merge-base as `baseRevision` and must resolve **change kind** per path (`git diff --diff-filter=A` on `base...head`, with path-absent-at-base fallback). Slice 8 passes `ChangedFileEntry[]` to `analyzeFamiliarity`. Familiarity section context: how much the author had worked on each **modified** file before this PR (last 6 months); added files are labeled with greenfield copy.
 
 ## Vertical slices
 
