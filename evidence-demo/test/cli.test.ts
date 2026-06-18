@@ -132,7 +132,10 @@ describe("runEvidenceDemo", () => {
     assert.match(output, /Author: Alice Author <alice@example.com>/);
     assert.match(output, /Familiarity/);
     assert.match(output, /src\/auth\.ts — high/);
-    assert.match(output, /No author commits to this file in 6 months/);
+    assert.match(
+      output,
+      /File added in this PR; no prior history on this path\. Author is the sole contributor in this change\./
+    );
     assert.match(output, /Blast Radius/);
     assert.match(output, /src\/auth\.ts — isolated/);
     assert.match(output, /Depended on by 2 modules, including src\/login\.ts, src\/signup\.ts/);

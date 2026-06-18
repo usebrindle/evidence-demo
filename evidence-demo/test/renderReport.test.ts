@@ -78,6 +78,61 @@ const sampleBlastRadius: BlastRadiusFinding[] = [
 ];
 
 describe("renderReport", () => {
+  it("uses greenfield copy for added files and pre-PR copy for modified files", () => {
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: [
+        changedEntry("src/newFeature.ts", "added"),
+        changedEntry("src/legacy.ts", "modified"),
+      ],
+      familiarity: [
+        {
+          touchedFile: "src/newFeature.ts",
+          changeKind: "added",
+          authorOwnedLineCount: 0,
+          totalBlameableLineCount: 0,
+          shareOfCurrentContent: 0,
+          authorChangedLineCount: 0,
+          totalChangedLineCount: 0,
+          shareOfWindowedLineChurn: 0,
+          authorCommitCount: 0,
+          totalFileCommitCount: 0,
+          lastTouchDate: null,
+          shareOfFileCommitChurn: 0,
+          characterization: "high",
+        },
+        {
+          touchedFile: "src/legacy.ts",
+          changeKind: "modified",
+          authorOwnedLineCount: 0,
+          totalBlameableLineCount: 100,
+          shareOfCurrentContent: 0,
+          authorChangedLineCount: 0,
+          totalChangedLineCount: 50,
+          shareOfWindowedLineChurn: 0,
+          authorCommitCount: 0,
+          totalFileCommitCount: 11,
+          lastTouchDate: null,
+          shareOfFileCommitChurn: 0,
+          characterization: "none",
+        },
+      ],
+      blastRadius: [],
+    });
+
+    const text = renderReport(report, plainRenderOptions);
+
+    assert.match(
+      text,
+      /src\/newFeature\.ts — high[\s\S]*File added in this PR; no prior history on this path\. Author is the sole contributor in this change\./
+    );
+    assert.match(
+      text,
+      /src\/legacy\.ts — none[\s\S]*Author owned 0% of lines and 0% of line churn in 6 months before this PR \(no author commits in window; 11 commits by others in window\)\./
+    );
+    assert.doesNotMatch(text, /File added in this PR[\s\S]*Author owned 0% of lines/);
+  });
+
   it("leads familiarity detail with line ownership when blame stats are available", () => {
     const report = buildEvidenceReport({
       author,
@@ -266,7 +321,7 @@ describe("renderReport", () => {
     assert.match(text, /Familiarity\n-{11}/);
     assert.match(
       text,
-      /How much the author worked on each changed file in the 6 months before this PR\./
+      /How much the author had worked on each changed file before this PR \(last 6 months\); added files labeled separately\./
     );
     assert.match(text, /Blast Radius\n-{12}/);
     assert.match(
