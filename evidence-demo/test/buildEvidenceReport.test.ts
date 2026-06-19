@@ -180,6 +180,55 @@ describe("buildEvidenceReport", () => {
     );
   });
 
+  it("states stylesheet-specific limitations", () => {
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["src/Button.module.css"],
+      familiarity: [],
+      blastRadius: [],
+    });
+
+    assert.ok(
+      report.limitations.some(
+        (item) =>
+          item.includes("@import") &&
+          item.includes("@use") &&
+          item.includes("@forward") &&
+          item.includes("CSS-in-JS") &&
+          item.includes("sass:*")
+      )
+    );
+    assert.ok(
+      report.limitations.some(
+        (item) =>
+          item.includes("Indented .sass syntax") &&
+          item.includes("Slice 3b") &&
+          item.includes("SCSS and CSS are in scope")
+      )
+    );
+  });
+
+  it("does not list changed stylesheet files in not analyzed when they have blast-radius findings", () => {
+    const stylesheetBlastRadius: BlastRadiusFinding[] = [
+      {
+        changedFile: "src/Button.module.css",
+        directDependentCount: 1,
+        directDependents: ["src/Button.tsx"],
+        transitiveReachCount: 1,
+        characterization: "isolated",
+      },
+    ];
+
+    const report = buildEvidenceReport({
+      author,
+      changedFiles: ["src/Button.module.css", "README.md"],
+      familiarity: [],
+      blastRadius: stylesheetBlastRadius,
+    });
+
+    assert.deepEqual(report.notAnalyzedForBlastRadius, ["README.md"]);
+  });
+
   it("states explicit limitations and omits a risk score or merge recommendation", () => {
     const report = buildEvidenceReport({
       author,

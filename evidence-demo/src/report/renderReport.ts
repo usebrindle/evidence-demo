@@ -277,26 +277,26 @@ function formatDependentSample(finding: BlastRadiusFinding): string {
 
   if (transitiveReachCount === directDependentCount) {
     if (directDependentCount === 0) {
-      return "Depended on by no modules.";
+      return "Depended on by no files.";
     }
 
-    const moduleWord = directDependentCount === 1 ? "module" : "modules";
+    const fileWord = directDependentCount === 1 ? "file" : "files";
     const remaining = directDependentCount - directDependents.length;
 
     if (directDependents.length === 0) {
-      return `Depended on by ${directDependentCount} ${moduleWord}.`;
+      return `Depended on by ${directDependentCount} ${fileWord}.`;
     }
 
     const listed = directDependents.join(", ");
     if (remaining <= 0) {
-      return `Depended on by ${directDependentCount} ${moduleWord}, including ${listed}.`;
+      return `Depended on by ${directDependentCount} ${fileWord}, including ${listed}.`;
     }
 
     const moreWord = remaining === 1 ? "1 more" : `${remaining} more`;
-    return `Depended on by ${directDependentCount} ${moduleWord}, including ${listed} (and ${moreWord}).`;
+    return `Depended on by ${directDependentCount} ${fileWord}, including ${listed} (and ${moreWord}).`;
   }
 
-  const transitiveWord = transitiveReachCount === 1 ? "module" : "modules";
+  const transitiveWord = transitiveReachCount === 1 ? "file" : "files";
   const prefix = `Reach: ${transitiveReachCount} ${transitiveWord} transitively (${formatDirectImporterPhrase(directDependentCount)})`;
   const remaining = directDependentCount - directDependents.length;
 
@@ -404,12 +404,12 @@ export function renderReport(
     palette.sectionHeader("Blast Radius"),
     palette.sectionHeader("------------"),
     palette.sectionContext(
-      "  Direct static import and require() dependents of each changed JavaScript or TypeScript source file."
+      "  Static reverse-dependency reach (direct and transitive) for each changed JavaScript, TypeScript, CSS, SCSS, or Sass source file."
     )
   );
 
   if (blastRadius.length === 0) {
-    lines.push("  (no analyzable JS/TS changed files to analyze)");
+    lines.push("  (no analyzable JS/TS or stylesheet changed files to analyze)");
   } else {
     for (const finding of blastRadius) {
       lines.push(...renderBlastRadiusFinding(finding, palette));
@@ -424,7 +424,7 @@ export function renderReport(
     );
     lines.push(
       palette.sectionContext(
-        "  Blast-radius analysis covers JavaScript/TypeScript source files only."
+        "  Blast-radius analysis covers JavaScript, TypeScript, CSS, SCSS, and Sass source files only."
       )
     );
     for (const file of report.notAnalyzedForBlastRadius) {

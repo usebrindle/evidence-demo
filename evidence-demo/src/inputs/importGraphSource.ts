@@ -5,11 +5,14 @@
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
+import postcss from "postcss";
+import postcssScss from "postcss-scss";
 import ts from "typescript";
 
 export type ImportGraph = ReadonlyMap<string, readonly string[]>;
 
-const IN_SCOPE_SOURCE_EXTENSION = /\.(jsx?|mjs|cjs|tsx?|mts|cts)$/;
+const IN_SCOPE_SOURCE_EXTENSION =
+  /\.(jsx?|mjs|cjs|tsx?|mts|cts|css|scss|sass)$/;
 
 const SKIP_DIRS = new Set([
   "node_modules",
@@ -28,7 +31,12 @@ export function isAnalyzableSourceFile(filePath: string): boolean {
   return IN_SCOPE_SOURCE_EXTENSION.test(normalized);
 }
 
-function collectSourceFiles(repoPath: string): string[] {
+export function isStylesheetFile(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, "/");
+  return /\.(css|scss|sass)$/.test(normalized);
+}
+
+export function collectSourceFiles(repoPath: string): string[] {
   const files: string[] = [];
 
   function walk(dir: string): void {
@@ -120,6 +128,158 @@ function resolveRelativeModule(
     }
   }
 
+  return resolveRelativeStylesheetModule(repoPath, importerRelativePath, specifier);
+}
+
+const STYLESHEET_EXTENSIONS = ["scss", "sass", "css"] as const;
+
+function buildStylesheetResolutionCandidates(relativeBase: string): string[] {
+  const normalized = relativeBase.replace(/\\/g, "/");
+
+  if (/\.(css|scss|sass)$/.test(normalized)) {
+    return [normalized];
+  }
+
+  const slashIndex = normalized.lastIndexOf("/");
+  const dir = slashIndex === -1 ? "" : normalized.slice(0, slashIndex);
+  const base = slashIndex === -1 ? normalized : normalized.slice(slashIndex + 1);
+  const prefix = dir.length === 0 ? "" : `${dir}/`;
+
+  const candidates: string[] = [
+    normalized,
+    ...STYLESHEET_EXTENSIONS.map((ext) => `${normalized}.${ext}`),
+  ];
+
+  for (const ext of STYLESHEET_EXTENSIONS) {
+    candidates.push(`${prefix}_${base}.${ext}`);
+  }
+  for (const ext of STYLESHEET_EXTENSIONS) {
+    candidates.push(`${prefix}${base}.${ext}`);
+  }
+
+  return candidates;
+}
+
+function resolveFirstExistingStylesheetCandidate(
+  repoPath: string,
+  candidates: readonly string[]
+): string | null {
+  for (const candidate of candidates) {
+    const full = path.join(repoPath, candidate);
+    if (existsSync(full) && statSync(full).isFile()) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function resolveRelativeStylesheetModule(
+  repoPath: string,
+  importerRelativePath: string,
+  specifier: string
+): string | null {
+  const importerDir = path.dirname(path.join(repoPath, importerRelativePath));
+  const joined = path.resolve(importerDir, specifier);
+  const relativeBase = normalizeRepoPath(path.relative(repoPath, joined));
+
+  if (relativeBase.startsWith("..")) {
+    return null;
+  }
+
+  return resolveFirstExistingStylesheetCandidate(
+    repoPath,
+    buildStylesheetResolutionCandidates(relativeBase)
+  );
+}
+
+function resolvePathAliasToStylesheetCandidates(
+  specifier: string,
+  compilerOptions: ts.CompilerOptions,
+  configDir: string
+): string[] {
+  const paths = compilerOptions.paths;
+  if (!paths) {
+    return [];
+  }
+
+  const baseUrl = compilerOptions.baseUrl ?? ".";
+  const absoluteBase = path.resolve(configDir, baseUrl);
+  const candidates: string[] = [];
+
+  for (const [pattern, replacements] of Object.entries(paths)) {
+    const starIndex = pattern.indexOf("*");
+    if (starIndex === -1) {
+      if (specifier !== pattern) {
+        continue;
+      }
+
+      for (const replacement of replacements) {
+        candidates.push(path.resolve(absoluteBase, replacement));
+      }
+      continue;
+    }
+
+    const prefix = pattern.slice(0, starIndex);
+    const suffix = pattern.slice(starIndex + 1);
+    if (!specifier.startsWith(prefix) || !specifier.endsWith(suffix)) {
+      continue;
+    }
+
+    const matched = specifier.slice(prefix.length, specifier.length - suffix.length);
+    for (const replacement of replacements) {
+      candidates.push(
+        path.resolve(absoluteBase, replacement.replace("*", matched))
+      );
+    }
+  }
+
+  return candidates;
+}
+
+function resolveAliasedStylesheetModule(
+  repoPath: string,
+  importerRelativePath: string,
+  specifier: string,
+  compilerOptions: ts.CompilerOptions
+): string | null {
+  const aliased = resolveAliasedModule(
+    repoPath,
+    importerRelativePath,
+    specifier,
+    compilerOptions
+  );
+  if (aliased !== null && isStylesheetFile(aliased)) {
+    return aliased;
+  }
+
+  const configPath = findTsConfig(repoPath);
+  if (configPath === null) {
+    return null;
+  }
+
+  const configDir = path.dirname(configPath);
+  const aliasCandidates = resolvePathAliasToStylesheetCandidates(
+    specifier,
+    compilerOptions,
+    configDir
+  );
+
+  for (const absoluteCandidate of aliasCandidates) {
+    if (!isPathInsideRepo(repoPath, absoluteCandidate)) {
+      continue;
+    }
+
+    const relativeBase = normalizeRepoPath(path.relative(repoPath, absoluteCandidate));
+    const resolved = resolveFirstExistingStylesheetCandidate(
+      repoPath,
+      buildStylesheetResolutionCandidates(relativeBase)
+    );
+    if (resolved !== null) {
+      return resolved;
+    }
+  }
+
   return null;
 }
 
@@ -186,7 +346,17 @@ function resolveModule(
     return null;
   }
 
-  return resolveAliasedModule(
+  const aliased = resolveAliasedModule(
+    repoPath,
+    importerRelativePath,
+    specifier,
+    compilerOptions
+  );
+  if (aliased !== null) {
+    return aliased;
+  }
+
+  return resolveAliasedStylesheetModule(
     repoPath,
     importerRelativePath,
     specifier,
@@ -263,6 +433,136 @@ function extractImportSpecifiers(
   return specifiers;
 }
 
+function extractStaticQuotedPathFromImportParams(params: string): string | null {
+  const trimmed = params.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  const urlMatch = trimmed.match(/^url\s*\(\s*(['"])([^'"]+)\1\s*\)/i);
+  if (urlMatch) {
+    return urlMatch[2];
+  }
+
+  if (trimmed.startsWith("'") || trimmed.startsWith('"')) {
+    const quote = trimmed[0];
+    const endQuote = trimmed.indexOf(quote, 1);
+    if (endQuote > 1) {
+      return trimmed.slice(1, endQuote);
+    }
+  }
+
+  return null;
+}
+
+function extractStaticQuotedStylesheetSpecifier(params: string): string | null {
+  return extractStaticQuotedPathFromImportParams(params);
+}
+
+function extractStylesheetAtRuleSpecifiers(
+  sourceText: string,
+  filePath: string,
+  parseStylesheet: (source: string, opts?: { from?: string }) => postcss.Root,
+  includeScssModuleRules: boolean
+): string[] {
+  try {
+    const root = parseStylesheet(sourceText, { from: filePath });
+    const specifiers: string[] = [];
+
+    const walkRule = (ruleName: string): void => {
+      root.walkAtRules(ruleName, (rule) => {
+        const specifier = extractStaticQuotedStylesheetSpecifier(rule.params);
+        if (specifier !== null) {
+          specifiers.push(specifier);
+        }
+      });
+    };
+
+    walkRule("import");
+    if (includeScssModuleRules) {
+      walkRule("use");
+      walkRule("forward");
+    }
+
+    return specifiers;
+  } catch {
+    return [];
+  }
+}
+
+function extractCssStylesheetSpecifiers(
+  sourceText: string,
+  filePath: string
+): string[] {
+  return extractStylesheetAtRuleSpecifiers(
+    sourceText,
+    filePath,
+    postcss.parse,
+    false
+  );
+}
+
+function extractScssStylesheetSpecifiers(
+  sourceText: string,
+  filePath: string
+): string[] {
+  return extractStylesheetAtRuleSpecifiers(
+    sourceText,
+    filePath,
+    postcssScss.parse,
+    true
+  );
+}
+
+function resolveStylesheetModule(
+  repoPath: string,
+  importerRelativePath: string,
+  specifier: string,
+  compilerOptions: ts.CompilerOptions | null
+): string | null {
+  if (specifier.startsWith("sass:")) {
+    return null;
+  }
+
+  if (specifier.startsWith(".")) {
+    return resolveRelativeStylesheetModule(
+      repoPath,
+      importerRelativePath,
+      specifier
+    );
+  }
+
+  const relative = resolveRelativeStylesheetModule(
+    repoPath,
+    importerRelativePath,
+    specifier
+  );
+  if (relative !== null) {
+    return relative;
+  }
+
+  if (compilerOptions === null) {
+    return null;
+  }
+
+  return resolveAliasedStylesheetModule(
+    repoPath,
+    importerRelativePath,
+    specifier,
+    compilerOptions
+  );
+}
+
+function addImporterEdge(
+  graph: Map<string, Set<string>>,
+  target: string,
+  importer: string
+): void {
+  const importers = graph.get(target) ?? new Set<string>();
+  importers.add(importer);
+  graph.set(target, importers);
+}
+
 export function createImportGraph(repoPath: string): ImportGraph {
   const resolvedRepo = path.resolve(repoPath);
   const compilerOptions = loadCompilerOptions(resolvedRepo);
@@ -272,6 +572,30 @@ export function createImportGraph(repoPath: string): ImportGraph {
   for (const file of sourceFiles) {
     const fullPath = path.join(resolvedRepo, file);
     const sourceText = readFileSync(fullPath, "utf8");
+
+    if (isStylesheetFile(file)) {
+      const specifiers = file.endsWith(".scss")
+        ? extractScssStylesheetSpecifiers(sourceText, file)
+        : file.endsWith(".css")
+          ? extractCssStylesheetSpecifiers(sourceText, file)
+          : [];
+
+      for (const specifier of specifiers) {
+        const target = resolveStylesheetModule(
+          resolvedRepo,
+          file,
+          specifier,
+          compilerOptions
+        );
+        if (target === null) {
+          continue;
+        }
+
+        addImporterEdge(graph, target, file);
+      }
+      continue;
+    }
+
     const specifiers = extractImportSpecifiers(sourceText, file);
 
     for (const specifier of specifiers) {
@@ -280,9 +604,7 @@ export function createImportGraph(repoPath: string): ImportGraph {
         continue;
       }
 
-      const importers = graph.get(target) ?? new Set<string>();
-      importers.add(file);
-      graph.set(target, importers);
+      addImporterEdge(graph, target, file);
     }
   }
 

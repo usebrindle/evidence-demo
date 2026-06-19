@@ -301,11 +301,46 @@ describe("analyzeBlastRadius", () => {
     const graph = new Map<string, readonly string[]>();
 
     const findings = analyzeBlastRadius({
-      changedFiles: ["docs/guide.md", "package.json", "styles/main.css"],
+      changedFiles: ["docs/guide.md", "package.json"],
       importGraph: graph,
     });
 
     assert.deepEqual(findings, []);
+  });
+
+  it("returns findings for changed stylesheet files present in the graph", () => {
+    const graph = new Map([
+      ["styles/base.css", ["styles/app.css"]],
+      ["styles/theme.scss", ["src/App.tsx", "styles/main.scss"]],
+    ]);
+
+    const findings = analyzeBlastRadius({
+      changedFiles: ["styles/base.css", "styles/theme.scss", "README.md"],
+      importGraph: graph,
+    });
+
+    assert.equal(findings.length, 2);
+
+    const base = findings.find(
+      (finding) => finding.changedFile === "styles/base.css"
+    );
+    assert.ok(base);
+    assert.equal(base.directDependentCount, 1);
+    assert.equal(base.transitiveReachCount, 1);
+    assert.equal(base.characterization, "isolated");
+    assert.deepEqual(base.directDependents, ["styles/app.css"]);
+
+    const theme = findings.find(
+      (finding) => finding.changedFile === "styles/theme.scss"
+    );
+    assert.ok(theme);
+    assert.equal(theme.directDependentCount, 2);
+    assert.equal(theme.transitiveReachCount, 2);
+    assert.equal(theme.characterization, "isolated");
+    assert.deepEqual(theme.directDependents, [
+      "src/App.tsx",
+      "styles/main.scss",
+    ]);
   });
 
   it("returns findings for changed JavaScript and JSX files", () => {
@@ -651,6 +686,207 @@ describe("analyzeBlastRadius require() integration", () => {
       ]);
     } finally {
       rmSync(mixedRepo, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("analyzeBlastRadius CSS @import integration", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-blast-radius-css-import-")
+    );
+
+    writeRepoFile(repoPath, "styles/base.css", ".btn { color: red; }\n");
+    writeRepoFile(
+      repoPath,
+      "styles/app.css",
+      "@import './base.css';\n\n.app { padding: 1rem; }\n"
+    );
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("produces findings for changed stylesheet files from CSS @import graph", () => {
+    const graph = createImportGraph(repoPath);
+
+    const findings = analyzeBlastRadius({
+      changedFiles: ["styles/base.css"],
+      importGraph: graph,
+    });
+
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].changedFile, "styles/base.css");
+    assert.equal(findings[0].directDependentCount, 1);
+    assert.equal(findings[0].transitiveReachCount, 1);
+    assert.equal(findings[0].characterization, "isolated");
+    assert.deepEqual(findings[0].directDependents, ["styles/app.css"]);
+  });
+});
+
+describe("analyzeBlastRadius JS/TS to stylesheet integration", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-blast-radius-js-stylesheet-")
+    );
+
+    writeRepoFile(
+      repoPath,
+      "src/Button.module.css",
+      ".btn { color: red; }\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "src/Button.tsx",
+      "import './Button.module.css';\nexport const Button = () => null;\n"
+    );
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("lists Button.tsx as direct dependent when Button.module.css changed", () => {
+    const graph = createImportGraph(repoPath);
+
+    const findings = analyzeBlastRadius({
+      changedFiles: ["src/Button.module.css"],
+      importGraph: graph,
+    });
+
+    assert.equal(findings.length, 1);
+    assert.equal(findings[0].changedFile, "src/Button.module.css");
+    assert.equal(findings[0].directDependentCount, 1);
+    assert.equal(findings[0].transitiveReachCount, 1);
+    assert.equal(findings[0].characterization, "isolated");
+    assert.deepEqual(findings[0].directDependents, ["src/Button.tsx"]);
+  });
+});
+
+describe("analyzeBlastRadius stylesheet transitive reach integration", () => {
+  function writeStylesheetChainRepo(
+    repoPath: string,
+    componentCount: number,
+    options: { includeAppImporter?: boolean } = {}
+  ): void {
+    writeRepoFile(repoPath, "styles/_tokens.scss", "$spacing: 8px;\n");
+    writeRepoFile(
+      repoPath,
+      "styles/theme.scss",
+      "@use 'tokens';\n\n.theme { padding: tokens.$spacing; }\n"
+    );
+    writeRepoFile(
+      repoPath,
+      "styles/main.scss",
+      "@forward './theme';\n\n.main { display: block; }\n"
+    );
+
+    for (let index = 0; index < componentCount; index += 1) {
+      writeRepoFile(
+        repoPath,
+        `src/components/Comp${index}.scss`,
+        "@use '../../styles/main';\n\n.comp { margin: 0; }\n"
+      );
+    }
+
+    if (options.includeAppImporter) {
+      writeRepoFile(
+        repoPath,
+        "src/App.tsx",
+        "import '../styles/main.scss';\nexport const App = () => null;\n"
+      );
+    }
+  }
+
+  it("counts transitive reach across a deep SCSS chain with broad characterization", () => {
+    const componentCount = 9;
+    const repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-blast-radius-scss-transitive-")
+    );
+    try {
+      writeStylesheetChainRepo(repoPath, componentCount);
+      const graph = createImportGraph(repoPath);
+
+      const findings = analyzeBlastRadius({
+        changedFiles: ["styles/_tokens.scss"],
+        importGraph: graph,
+      });
+
+      assert.equal(findings.length, 1);
+      const finding = findings[0];
+      assert.equal(finding.changedFile, "styles/_tokens.scss");
+      assert.equal(finding.directDependentCount, 1);
+      assert.deepEqual(finding.directDependents, ["styles/theme.scss"]);
+      assert.equal(finding.transitiveReachCount, componentCount + 2);
+      assert.ok(finding.transitiveReachCount >= 11);
+      assert.equal(finding.characterization, "broad");
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
+
+  it("terminates circular @use through a barrel without double-counting", () => {
+    const repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-blast-radius-scss-cycle-")
+    );
+    try {
+      writeRepoFile(repoPath, "styles/_shared.scss", "$color: blue;\n");
+      writeRepoFile(
+        repoPath,
+        "styles/_barrel.scss",
+        "@forward './shared';\n@use './barrel-consumer';\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "styles/_barrel-consumer.scss",
+        "@use './barrel';\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "src/app.scss",
+        "@use '../styles/barrel-consumer';\n\n.app { color: shared.$color; }\n"
+      );
+
+      const graph = createImportGraph(repoPath);
+      const result = countTransitiveReachForFile("styles/_shared.scss", graph);
+
+      assert.equal(result.transitiveReachCount, 3);
+      assert.deepEqual(graph.get("styles/_shared.scss"), ["styles/_barrel.scss"]);
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
+    }
+  });
+
+  it("counts JS importers in transitive reach across stylesheet chains", () => {
+    const repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-blast-radius-scss-cross-lang-")
+    );
+    try {
+      writeStylesheetChainRepo(repoPath, 0, { includeAppImporter: true });
+      const graph = createImportGraph(repoPath);
+
+      const findings = analyzeBlastRadius({
+        changedFiles: ["styles/_tokens.scss"],
+        importGraph: graph,
+      });
+
+      assert.equal(findings.length, 1);
+      const finding = findings[0];
+      assert.equal(finding.directDependentCount, 1);
+      assert.deepEqual(finding.directDependents, ["styles/theme.scss"]);
+      assert.equal(finding.transitiveReachCount, 3);
+      assert.deepEqual(
+        countTransitiveReachForFile("styles/_tokens.scss", graph).transitiveReachCount,
+        3
+      );
+      assert.ok(graph.get("styles/main.scss")?.includes("src/App.tsx"));
+    } finally {
+      rmSync(repoPath, { recursive: true, force: true });
     }
   });
 });

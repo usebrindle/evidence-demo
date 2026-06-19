@@ -4,7 +4,12 @@ import os from "node:os";
 import path from "node:path";
 import { after, before, describe, it } from "node:test";
 
-import { createImportGraph } from "../src/inputs/importGraphSource.js";
+import {
+  collectSourceFiles,
+  createImportGraph,
+  isAnalyzableSourceFile,
+} from "../src/inputs/importGraphSource.js";
+import { countDirectImportersForFile } from "../src/analyzers/blastRadius.js";
 
 function writeRepoFile(
   repoPath: string,
@@ -373,6 +378,580 @@ describe("createImportGraph require()", () => {
       const graph = createImportGraph(repoPath);
 
       assert.deepEqual(graph.get("src/alias-target.js"), ["src/alias-require.js"]);
+    });
+  });
+});
+
+describe("isAnalyzableSourceFile", () => {
+  it("returns true for stylesheet extensions", () => {
+    assert.equal(isAnalyzableSourceFile("styles/main.css"), true);
+    assert.equal(isAnalyzableSourceFile("styles/theme.scss"), true);
+    assert.equal(isAnalyzableSourceFile("styles/_tokens.sass"), true);
+    assert.equal(isAnalyzableSourceFile("src/Button.module.css"), true);
+  });
+
+  it("returns true for existing JS/TS extensions", () => {
+    assert.equal(isAnalyzableSourceFile("src/util.ts"), true);
+    assert.equal(isAnalyzableSourceFile("src/util.tsx"), true);
+    assert.equal(isAnalyzableSourceFile("src/util.js"), true);
+    assert.equal(isAnalyzableSourceFile("src/util.jsx"), true);
+    assert.equal(isAnalyzableSourceFile("src/util.mjs"), true);
+    assert.equal(isAnalyzableSourceFile("src/util.cjs"), true);
+  });
+
+  it("returns false for non-source files", () => {
+    assert.equal(isAnalyzableSourceFile("README.md"), false);
+    assert.equal(isAnalyzableSourceFile("package.json"), false);
+    assert.equal(isAnalyzableSourceFile("assets/logo.png"), false);
+  });
+});
+
+describe("collectSourceFiles", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-collect-source-")
+    );
+
+    writeRepoFile(repoPath, "src/util.ts", "export const util = 1;\n");
+    writeRepoFile(repoPath, "styles/base.css", ".btn { color: red; }\n");
+    writeRepoFile(repoPath, "styles/theme.scss", "$color: blue;\n");
+    writeRepoFile(repoPath, "styles/_tokens.sass", "$spacing: 8px\n");
+    writeRepoFile(repoPath, "README.md", "# Demo\n");
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("walks and includes stylesheet files alongside JS/TS", () => {
+    const files = collectSourceFiles(repoPath);
+
+    assert.deepEqual(files, [
+      "src/util.ts",
+      "styles/_tokens.sass",
+      "styles/base.css",
+      "styles/theme.scss",
+    ]);
+  });
+});
+
+describe("createImportGraph stylesheet discovery", () => {
+  let repoPath = "";
+
+  before(() => {
+    repoPath = mkdtempSync(
+      path.join(os.tmpdir(), "evidence-demo-import-graph-stylesheet-")
+    );
+
+    writeRepoFile(repoPath, "styles/base.css", ".btn { color: red; }\n");
+    writeRepoFile(repoPath, "styles/theme.scss", "$color: blue;\n");
+    writeRepoFile(repoPath, "styles/_tokens.sass", "$spacing: 8px\n");
+  });
+
+  after(() => {
+    rmSync(repoPath, { recursive: true, force: true });
+  });
+
+  it("scans repos containing only stylesheet files without error", () => {
+    const graph = createImportGraph(repoPath);
+
+    assert.equal(graph.size, 0);
+  });
+});
+
+describe("createImportGraph CSS @import", () => {
+  describe("quoted @import", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-css-import-")
+      );
+
+      writeRepoFile(repoPath, "styles/base.css", ".btn { color: red; }\n");
+      writeRepoFile(
+        repoPath,
+        "styles/app.css",
+        "@import './base.css';\n\n.app { padding: 1rem; }\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("creates reverse edge from base.css to app.css for @import './base.css'", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/base.css"), ["styles/app.css"]);
+    });
+
+    it("direct dependent count on changed base.css is 1", () => {
+      const graph = createImportGraph(repoPath);
+
+      const result = countDirectImportersForFile("styles/base.css", graph);
+
+      assert.equal(result.dependentCount, 1);
+      assert.deepEqual(result.dependents, ["styles/app.css"]);
+    });
+  });
+
+  describe("@import url()", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-css-import-url-")
+      );
+
+      writeRepoFile(repoPath, "styles/base.css", ".btn { color: red; }\n");
+      writeRepoFile(
+        repoPath,
+        "styles/app.css",
+        "@import url('./base.css');\n\n.app { padding: 1rem; }\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("creates the same reverse edge for @import url('./base.css')", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/base.css"), ["styles/app.css"]);
+    });
+  });
+
+  describe("extensionless resolution", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(
+          os.tmpdir(),
+          "evidence-demo-import-graph-css-import-extensionless-"
+        )
+      );
+
+      writeRepoFile(repoPath, "styles/theme.scss", "$color: blue;\n");
+      writeRepoFile(
+        repoPath,
+        "styles/app.css",
+        '@import "./theme";\n\n.app { color: black; }\n'
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("resolves extensionless specifiers to .css, .scss, and .sass targets", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/theme.scss"), ["styles/app.css"]);
+    });
+  });
+});
+
+describe("createImportGraph SCSS @use and @forward", () => {
+  describe("theme @use and main @forward", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-scss-use-forward-")
+      );
+
+      writeRepoFile(repoPath, "styles/tokens.scss", "$spacing: 8px;\n");
+      writeRepoFile(
+        repoPath,
+        "styles/theme.scss",
+        "@use 'tokens';\n\n.theme { padding: $spacing; }\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "styles/main.scss",
+        "@forward './theme';\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "src/util.ts",
+        "export const util = 1;\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "src/app.ts",
+        "import { util } from './util';\nexport const app = util;\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("creates reverse edge from tokens.scss to theme.scss for @use 'tokens'", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/tokens.scss"), ["styles/theme.scss"]);
+    });
+
+    it("creates reverse edge from theme.scss to main.scss for @forward './theme'", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/theme.scss"), ["styles/main.scss"]);
+    });
+
+    it("merges SCSS edges into the same graph as JS/TS edges", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("src/util.ts"), ["src/app.ts"]);
+      assert.deepEqual(graph.get("styles/tokens.scss"), ["styles/theme.scss"]);
+      assert.deepEqual(graph.get("styles/theme.scss"), ["styles/main.scss"]);
+    });
+  });
+
+  describe("@use with namespace and @forward with show", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(
+          os.tmpdir(),
+          "evidence-demo-import-graph-scss-use-forward-params-"
+        )
+      );
+
+      writeRepoFile(repoPath, "styles/mixins.scss", "@mixin flex { display: flex; }\n");
+      writeRepoFile(
+        repoPath,
+        "styles/components.scss",
+        "@use './mixins' as m;\n\n.card { @include m.flex; }\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "styles/index.scss",
+        "@forward './components' show flex;\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("extracts static quoted specifiers from @use and @forward with trailing params", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/mixins.scss"), ["styles/components.scss"]);
+      assert.deepEqual(graph.get("styles/components.scss"), ["styles/index.scss"]);
+    });
+  });
+
+  describe("built-in sass modules", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-scss-sass-builtin-")
+      );
+
+      writeRepoFile(
+        repoPath,
+        "styles/theme.scss",
+        "@use 'sass:color';\n@use 'sass:math';\n\n.theme { color: sass:color.adjust(blue, $lightness: 10%); }\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("does not create graph edges for built-in sass:* modules", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.equal(graph.size, 0);
+    });
+  });
+});
+
+describe("createImportGraph Sass partial and index resolution", () => {
+  describe("partial _tokens.scss", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-scss-partial-")
+      );
+
+      writeRepoFile(repoPath, "styles/_tokens.scss", "$spacing: 8px;\n");
+      writeRepoFile(
+        repoPath,
+        "styles/theme.scss",
+        "@use 'tokens';\n\n.theme { padding: tokens.$spacing; }\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("resolves @use 'tokens' to _tokens.scss with reverse edge to theme.scss", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/_tokens.scss"), ["styles/theme.scss"]);
+    });
+
+    it("direct dependent count on changed _tokens.scss is 1", () => {
+      const graph = createImportGraph(repoPath);
+
+      const result = countDirectImportersForFile("styles/_tokens.scss", graph);
+
+      assert.equal(result.dependentCount, 1);
+      assert.deepEqual(result.dependents, ["styles/theme.scss"]);
+    });
+  });
+
+  describe("partial with ./ relative form", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(
+          os.tmpdir(),
+          "evidence-demo-import-graph-scss-partial-relative-"
+        )
+      );
+
+      writeRepoFile(repoPath, "styles/_mixins.scss", "@mixin flex { display: flex; }\n");
+      writeRepoFile(
+        repoPath,
+        "styles/components.scss",
+        "@use './mixins';\n\n.card { @include mixins.flex; }\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("resolves @use './mixins' to _mixins.scss", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/_mixins.scss"), ["styles/components.scss"]);
+    });
+  });
+
+  describe("index file resolution", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-scss-index-")
+      );
+
+      writeRepoFile(repoPath, "styles/_index.scss", "@forward './tokens';\n");
+      writeRepoFile(repoPath, "styles/_tokens.scss", "$color: blue;\n");
+      writeRepoFile(
+        repoPath,
+        "src/app.scss",
+        "@use '../styles/index';\n\n.app { color: index.$color; }\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("resolves styles/index to _index.scss", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/_index.scss"), ["src/app.scss"]);
+    });
+  });
+
+  describe("path alias resolution", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-scss-alias-")
+      );
+
+      writeRepoFile(
+        repoPath,
+        "tsconfig.json",
+        JSON.stringify({
+          compilerOptions: {
+            baseUrl: ".",
+            paths: {
+              "@styles/*": ["styles/*"],
+            },
+          },
+        })
+      );
+      writeRepoFile(repoPath, "styles/_tokens.scss", "$spacing: 8px;\n");
+      writeRepoFile(
+        repoPath,
+        "styles/theme.scss",
+        "@use '@styles/tokens';\n\n.theme { padding: tokens.$spacing; }\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("resolves aliased stylesheet specifiers via tsconfig paths", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/_tokens.scss"), ["styles/theme.scss"]);
+    });
+  });
+});
+
+describe("createImportGraph JS/TS to stylesheet edges", () => {
+  describe("CSS module import", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-js-css-module-")
+      );
+
+      writeRepoFile(
+        repoPath,
+        "src/Button.module.css",
+        ".btn { color: red; }\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "src/Button.tsx",
+        "import './Button.module.css';\nexport const Button = () => null;\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("creates reverse edge from Button.module.css to Button.tsx for import", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("src/Button.module.css"), ["src/Button.tsx"]);
+    });
+
+    it("direct dependent count on changed Button.module.css is 1", () => {
+      const graph = createImportGraph(repoPath);
+
+      const result = countDirectImportersForFile(
+        "src/Button.module.css",
+        graph
+      );
+
+      assert.equal(result.dependentCount, 1);
+      assert.deepEqual(result.dependents, ["src/Button.tsx"]);
+    });
+  });
+
+  describe("static-literal require of stylesheet", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-js-require-scss-")
+      );
+
+      writeRepoFile(repoPath, "src/styles.scss", ".app { padding: 1rem; }\n");
+      writeRepoFile(
+        repoPath,
+        "src/app.js",
+        "const styles = require('./styles.scss');\nmodule.exports = styles;\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("creates reverse edge from styles.scss to app.js for require", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("src/styles.scss"), ["src/app.js"]);
+    });
+  });
+
+  describe("extensionless JS import of stylesheet", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(
+          os.tmpdir(),
+          "evidence-demo-import-graph-js-extensionless-stylesheet-"
+        )
+      );
+
+      writeRepoFile(repoPath, "src/theme.scss", ".theme { color: blue; }\n");
+      writeRepoFile(
+        repoPath,
+        "src/App.tsx",
+        "import './theme';\nexport const App = () => null;\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("resolves extensionless import to .scss target", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("src/theme.scss"), ["src/App.tsx"]);
+    });
+  });
+
+  describe("aliased JS import of stylesheet", () => {
+    let repoPath = "";
+
+    before(() => {
+      repoPath = mkdtempSync(
+        path.join(os.tmpdir(), "evidence-demo-import-graph-js-alias-stylesheet-")
+      );
+
+      writeRepoFile(
+        repoPath,
+        "tsconfig.json",
+        JSON.stringify({
+          compilerOptions: {
+            baseUrl: ".",
+            paths: {
+              "@styles/*": ["styles/*"],
+            },
+          },
+        })
+      );
+      writeRepoFile(
+        repoPath,
+        "styles/_tokens.scss",
+        "$spacing: 8px;\n"
+      );
+      writeRepoFile(
+        repoPath,
+        "src/App.tsx",
+        "import '@styles/tokens';\nexport const App = () => null;\n"
+      );
+    });
+
+    after(() => {
+      rmSync(repoPath, { recursive: true, force: true });
+    });
+
+    it("resolves aliased stylesheet import via tsconfig paths", () => {
+      const graph = createImportGraph(repoPath);
+
+      assert.deepEqual(graph.get("styles/_tokens.scss"), ["src/App.tsx"]);
     });
   });
 });
